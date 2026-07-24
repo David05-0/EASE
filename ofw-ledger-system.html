@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case Ledger — Import &amp; Masterlist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --paper:#EAEDE6;
+    --paper-card:#FBFCF9;
+    --ink:#1F2A24;
+    --ink-soft:#54615A;
+    --rule:#C8CDBE;
+    --ledger-red:#A6403A;
+    --gold:#9A7B23;
+    --released:#2F6F4E;
+    --released-bg:#E4EFE8;
+    --pending:#A6403A;
+    --pending-bg:#F5E7E5;
+    --shadow: 0 1px 2px rgba(31,42,36,0.06), 0 6px 20px rgba(31,42,36,0.05);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+  }
+  .app{max-width:1180px;margin:0 auto;padding:28px 24px 80px;}
+
+  /* ---- Header / stamp ---- */
+  header.top{
+    display:flex;justify-content:space-between;align-items:flex-end;
+    gap:24px;flex-wrap:wrap;
+    border-bottom:2px solid var(--ink);
+    padding-bottom:18px;margin-bottom:22px;
+  }
+  .brand-eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--gold);margin-bottom:6px;font-weight:600;
+  }
+  h1{
+    font-family:'Fraunces',serif;font-weight:600;font-size:34px;
+    margin:0;letter-spacing:-0.01em;
+  }
+  .subtitle{color:var(--ink-soft);font-size:14px;margin-top:4px;}
+  .stamp-row{display:flex;gap:10px;flex-wrap:wrap;}
+  .stamp{
+    font-family:'IBM Plex Mono',monospace;
+    border:1.5px solid var(--ink);
+    border-radius:3px;
+    padding:8px 14px;
+    text-align:center;
+    background:var(--paper-card);
+    min-width:92px;
+  }
+  .stamp .num{font-size:20px;font-weight:600;display:block;line-height:1.1;}
+  .stamp .lbl{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);}
+  .stamp.released{border-color:var(--released);color:var(--released);}
+  .stamp.pending{border-color:var(--pending);color:var(--pending);}
+
+  /* ---- Tabs ---- */
+  nav.tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--rule);}
+  nav.tabs button{
+    font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;
+    background:none;border:none;cursor:pointer;color:var(--ink-soft);
+    padding:10px 4px;margin-right:22px;border-bottom:2.5px solid transparent;
+    letter-spacing:.01em;
+  }
+  nav.tabs button.active{color:var(--ink);border-bottom-color:var(--ledger-red);}
+  nav.tabs button .count{
+    font-family:'IBM Plex Mono',monospace;font-weight:400;color:var(--ink-soft);font-size:12px;
+  }
+
+  .panel{display:none;}
+  .panel.active{display:block;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:none;}}
+
+  .card{
+    background:var(--paper-card);border:1px solid var(--rule);border-radius:6px;
+    box-shadow:var(--shadow);
+  }
+
+  /* ---- Import panel ---- */
+  .dropzone{
+    padding:44px 24px;text-align:center;cursor:pointer;
+    border:2px dashed var(--rule);border-radius:8px;background:var(--paper-card);
+    transition:border-color .15s, background .15s;
+  }
+  .dropzone:hover, .dropzone.drag{border-color:var(--gold);background:#F5F3EA;}
+  .dropzone .glyph{font-size:30px;margin-bottom:10px;}
+  .dropzone .main{font-weight:600;font-size:15px;}
+  .dropzone .sub{color:var(--ink-soft);font-size:13px;margin-top:4px;}
+  input[type=file]{display:none;}
+
+  .mapping{padding:20px 22px;margin-top:18px;}
+  .mapping h3{font-family:'Fraunces',serif;font-size:18px;margin:0 0 4px;font-weight:600;}
+  .mapping .note{color:var(--ink-soft);font-size:13px;margin-bottom:16px;}
+  .field-row{display:grid;grid-template-columns:180px 1fr;gap:14px;align-items:center;margin-bottom:12px;}
+  .field-row label{font-size:13px;font-weight:600;color:var(--ink-soft);}
+  select, input[type=text]{
+    font-family:'Inter',sans-serif;font-size:13.5px;padding:8px 10px;
+    border:1px solid var(--rule);border-radius:5px;background:#fff;color:var(--ink);width:100%;
+  }
+  .preview-table{margin-top:18px;overflow:auto;max-height:220px;border:1px solid var(--rule);border-radius:6px;}
+  .btn{
+    font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;
+    padding:10px 18px;border-radius:5px;border:1.5px solid var(--ink);
+    background:var(--ink);color:var(--paper-card);cursor:pointer;
+  }
+  .btn.secondary{background:none;color:var(--ink);}
+  .btn.danger{border-color:var(--ledger-red);color:var(--ledger-red);background:none;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
+
+  /* ---- Ledgers panel ---- */
+  .ledger-item{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:16px 20px;border-bottom:1px solid var(--rule);
+  }
+  .ledger-item:last-child{border-bottom:none;}
+  .ledger-item .name{font-weight:600;font-size:14.5px;}
+  .ledger-item .meta{color:var(--ink-soft);font-size:12.5px;font-family:'IBM Plex Mono',monospace;margin-top:3px;}
+  .ledger-item .counts{display:flex;gap:8px;align-items:center;}
+  .pill{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 9px;border-radius:20px;
+  }
+  .pill.released{background:var(--released-bg);color:var(--released);}
+  .pill.pending{background:var(--pending-bg);color:var(--pending);}
+  .icon-btn{background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:16px;padding:4px 8px;}
+  .icon-btn:hover{color:var(--ledger-red);}
+  .empty{padding:50px 20px;text-align:center;color:var(--ink-soft);}
+  .empty .glyph{font-size:26px;margin-bottom:8px;}
+
+  /* ---- Masterlist panel ---- */
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;}
+  .toolbar input[type=text]{max-width:260px;}
+  .toolbar select{max-width:190px;}
+  .toolbar .spacer{flex:1;}
+  table.master{width:100%;border-collapse:collapse;font-size:13px;}
+  table.master thead th{
+    position:sticky;top:0;background:#F0EEE3;
+    text-align:left;padding:10px 12px;font-size:11px;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--ink-soft);cursor:pointer;user-select:none;
+    border-bottom:2px solid var(--ink);white-space:nowrap;
+  }
+  table.master thead th:hover{color:var(--ink);}
+  table.master thead th .arrow{margin-left:4px;color:var(--ledger-red);}
+  table.master tbody td{
+    padding:9px 12px;border-bottom:1px solid var(--rule);white-space:nowrap;
+    max-width:260px;overflow:hidden;text-overflow:ellipsis;
+  }
+  table.master tbody tr:hover{background:#F3F5EE;}
+  table.master tbody tr.ledger-margin td:first-child{border-left:3px solid var(--ledger-red);}
+  .status-tag{
+    font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:10.5px;
+    letter-spacing:.06em;padding:3px 8px;border-radius:3px;border:1px solid;
+    display:inline-block;transform:rotate(-1deg);
+  }
+  .status-tag.released{color:var(--released);border-color:var(--released);background:var(--released-bg);}
+  .status-tag.pending{color:var(--pending);border-color:var(--pending);background:var(--pending-bg);}
+  .table-wrap{overflow:auto;max-height:560px;border:1px solid var(--rule);border-radius:6px;}
+  .result-count{color:var(--ink-soft);font-size:12.5px;margin-bottom:8px;font-family:'IBM Plex Mono',monospace;}
+  footer.note{margin-top:26px;color:var(--ink-soft);font-size:12px;line-height:1.6;border-top:1px solid var(--rule);padding-top:14px;}
+  code{background:#F0EEE3;padding:1px 5px;border-radius:3px;font-family:'IBM Plex Mono',monospace;}
+
+  /* ---- Auth gate ---- */
+  #authScreen{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+  }
+  .auth-card{
+    background:var(--paper-card);border:1px solid var(--rule);border-radius:8px;
+    box-shadow:var(--shadow);padding:32px 30px;width:100%;max-width:380px;
+  }
+  .auth-card .brand-eyebrow{margin-bottom:6px;}
+  .auth-card h1{font-size:24px;margin-bottom:4px;}
+  .auth-card .subtitle{margin-bottom:22px;}
+  .auth-card label{font-size:12.5px;font-weight:600;color:var(--ink-soft);display:block;margin-bottom:5px;}
+  .auth-card .field-group{margin-bottom:14px;}
+  .auth-card .btn{width:100%;justify-content:center;margin-top:6px;}
+  .auth-toggle{text-align:center;margin-top:14px;font-size:12.5px;color:var(--ink-soft);}
+  .auth-toggle a{color:var(--ledger-red);cursor:pointer;font-weight:600;text-decoration:none;}
+  .auth-error{color:var(--pending);font-size:12.5px;margin-top:10px;display:none;}
+  .setup-notice{
+    background:var(--pending-bg);border:1px solid var(--pending);color:var(--pending);
+    border-radius:6px;padding:14px 16px;font-size:12.5px;line-height:1.6;margin-bottom:18px;
+  }
+  .setup-notice code{background:rgba(255,255,255,.5);}
+  #signOutBtn{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 12px;}
+  .header-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
+  .user-line{font-size:11.5px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
+</style>
+</head>
+<body>
+
+<!-- AUTH GATE -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="brand-eyebrow">Register of Cases</div>
+    <h1>Case Ledger</h1>
+    <div class="subtitle">Sign in to access the office ledger</div>
+
+    <div class="setup-notice" id="setupNotice" style="display:none;">
+      Firebase isn't configured yet. Open the file and fill in <code>firebaseConfig</code>
+      near the top of the <code>&lt;script&gt;</code> with your project's values from the
+      Firebase console (Project settings → General → Your apps), then reload this page.
+    </div>
+
+    <div id="authForm">
+      <div class="field-group">
+        <label>Email</label>
+        <input type="text" id="authEmail" placeholder="name@dmw.gov.ph">
+      </div>
+      <div class="field-group">
+        <label>Password</label>
+        <input type="text" id="authPassword" placeholder="••••••••" style="-webkit-text-security:disc;">
+      </div>
+      <button class="btn" id="authSubmitBtn">Sign in</button>
+      <div class="auth-error" id="authError"></div>
+      <div class="auth-toggle" id="authToggle">No account yet? <a id="toggleModeLink">Create one</a></div>
+    </div>
+  </div>
+</div>
+
+<div class="app" id="mainApp" style="display:none;">
+
+  <header class="top">
+    <div>
+      <div class="brand-eyebrow">Register of Cases</div>
+      <h1>Case Ledger</h1>
+      <div class="subtitle">Import spreadsheets → auto-sorted into Released / Non‑Released → running masterlist</div>
+    </div>
+    <div class="header-right">
+      <div class="user-line" id="userLine"></div>
+      <div class="stamp-row" id="stampRow"></div>
+      <button class="btn secondary" id="signOutBtn">Sign out</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="import" class="active">Import</button>
+    <button data-tab="ledgers">Ledgers <span class="count" id="ledgerCountTab"></span></button>
+    <button data-tab="masterlist">Masterlist <span class="count" id="masterCountTab"></span></button>
+  </nav>
+
+  <!-- IMPORT -->
+  <section class="panel active" id="panel-import">
+    <div class="dropzone" id="dropzone">
+      <div class="glyph">📄</div>
+      <div class="main">Drop an Excel file here, or click to browse</div>
+      <div class="sub">.xlsx / .xls / .csv — each import becomes its own ledger entry</div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+    </div>
+
+    <div class="card mapping" id="mappingCard" style="display:none;">
+      <h3 id="mapTitle">Confirm columns</h3>
+      <div class="note">The system found these columns. Confirm which one marks a case as released, and which one identifies it.</div>
+
+      <div class="field-row" id="sheetPickerRow" style="display:none;">
+        <label>Sheet</label>
+        <select id="sheetSelect"></select>
+      </div>
+      <div class="field-row">
+        <label>Date Released column</label>
+        <select id="releaseColSelect"></select>
+      </div>
+      <div class="field-row">
+        <label>Identifier column</label>
+        <select id="nameColSelect"></select>
+      </div>
+      <div class="field-row">
+        <label>Ledger name</label>
+        <input type="text" id="ledgerNameInput" placeholder="e.g. July 2026 OEC Applications">
+      </div>
+
+      <div class="preview-table"><table class="master" id="previewTable"></table></div>
+
+      <div class="actions">
+        <button class="btn" id="createLedgerBtn">Create ledger</button>
+        <button class="btn secondary" id="cancelImportBtn">Cancel</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- LEDGERS -->
+  <section class="panel" id="panel-ledgers">
+    <div class="card" id="ledgerList"></div>
+  </section>
+
+  <!-- MASTERLIST -->
+  <section class="panel" id="panel-masterlist">
+    <div class="toolbar">
+      <input type="text" id="searchInput" placeholder="Search masterlist…">
+      <select id="statusFilter">
+        <option value="all">All statuses</option>
+        <option value="released">Released only</option>
+        <option value="pending">Non‑Released only</option>
+      </select>
+      <select id="ledgerFilter"><option value="all">All ledgers</option></select>
+      <div class="spacer"></div>
+      <button class="btn secondary" id="exportCsvBtn">Export CSV</button>
+      <button class="btn secondary" id="exportJsonBtn">Backup (JSON)</button>
+      <button class="btn secondary" id="importJsonBtn">Restore backup</button>
+      <input type="file" id="jsonFileInput" accept=".json" style="display:none;">
+    </div>
+    <div class="result-count" id="resultCount"></div>
+    <div class="table-wrap"><table class="master" id="masterTable"></table></div>
+  </section>
+
+  <footer class="note">
+    Status is auto‑derived per row: any non‑empty value in the mapped <em>Date Released</em> column marks a case <strong>Released</strong>; a blank value marks it <strong>Non‑Released</strong>.
+    Ledgers are stored in Firestore and sync in real time to every signed‑in user. <em>Backup (JSON)</em> / <em>Restore backup</em> are still there as an extra manual export, e.g. for archiving a snapshot outside Firebase.
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   FIREBASE CONFIG — fill these in from
+   Firebase console → Project settings → General → Your apps
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+const CONFIG_IS_SET = firebaseConfig.apiKey !== "YOUR_API_KEY";
+
+let auth, db;
+if (CONFIG_IS_SET){
+  firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth();
+  db = firebase.firestore();
+  db.enablePersistence({synchronizeTabs:true}).catch(()=>{ /* fine if unsupported/multiple tabs */ });
+}
+
+/* ============================================================
+   STORAGE LAYER — Firestore, collection "ledgers".
+   One document per ledger: {name, fileName, sheetName, importedAt,
+   releaseCol, nameCol, columns[], rows[]}. Real-time synced across
+   every signed-in user via onSnapshot.
+   ============================================================ */
+const Store = {
+  ledgers: [],
+  _unsub: null,
+  listen(onChange){
+    if (this._unsub) this._unsub();
+    this._unsub = db.collection('ledgers').orderBy('importedAt','desc')
+      .onSnapshot(snap => {
+        this.ledgers = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+        onChange();
+      }, err => {
+        console.error(err);
+        alert('Could not load ledgers from Firestore: ' + err.message);
+      });
+  },
+  async addLedger(ledger){
+    const { id, ...rest } = ledger;
+    await db.collection('ledgers').doc(id).set(rest);
+  },
+  async removeLedger(id){
+    await db.collection('ledgers').doc(id).delete();
+  },
+  all(){ return this.ledgers; }
+};
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let pendingImport = null; // {columns, sheetRows, workbook, sheetNames}
+let sort = { col: null, dir: 1 };
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+const $ = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+const uid = () => Math.random().toString(36).slice(2,10);
+
+function guessReleaseCol(cols){
+  return cols.find(c => /release/i.test(c)) || cols.find(c => /date/i.test(c)) || cols[0];
+}
+function guessNameCol(cols){
+  return cols.find(c => /^name$/i.test(c)) ||
+         cols.find(c => /name/i.test(c) && !/file ?name/i.test(c)) ||
+         cols[0];
+}
+function isReleased(val){
+  if (val === null || val === undefined) return false;
+  const s = String(val).trim();
+  return s.length > 0 && s.toLowerCase() !== 'n/a' && s !== '-';
+}
+function fmtDate(d){
+  return new Date(d).toLocaleDateString('en-PH', {year:'numeric', month:'short', day:'numeric'});
+}
+
+/* ============================================================
+   TABS
+   ============================================================ */
+$$('nav.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $$('nav.tabs button').forEach(b => b.classList.remove('active'));
+    $$('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    $('#panel-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'ledgers') renderLedgers();
+    if (btn.dataset.tab === 'masterlist') renderMasterlist();
+  });
+});
+
+/* ============================================================
+   IMPORT FLOW
+   ============================================================ */
+const dropzone = $('#dropzone');
+const fileInput = $('#fileInput');
+dropzone.addEventListener('click', () => fileInput.click());
+['dragover','dragenter'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('drag'); }));
+dropzone.addEventListener('drop', e => { if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+function handleFile(file){
+  const reader = new FileReader();
+  reader.onload = e => {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, {type:'array', cellDates:true});
+    pendingImport = { workbook, fileName: file.name };
+    const sheetPickerRow = $('#sheetPickerRow');
+    const sheetSelect = $('#sheetSelect');
+    sheetSelect.innerHTML = '';
+    workbook.SheetNames.forEach(n => {
+      const o = document.createElement('option'); o.value = n; o.textContent = n; sheetSelect.appendChild(o);
+    });
+    sheetPickerRow.style.display = workbook.SheetNames.length > 1 ? 'grid' : 'none';
+    sheetSelect.onchange = () => loadSheet(sheetSelect.value);
+    loadSheet(workbook.SheetNames[0]);
+    $('#ledgerNameInput').value = file.name.replace(/\.(xlsx|xls|csv)$/i,'');
+    $('#mappingCard').style.display = 'block';
+    $('#mappingCard').scrollIntoView({behavior:'smooth', block:'nearest'});
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function loadSheet(sheetName){
+  const sheet = pendingImport.workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+  if (!rows.length){
+    alert('That sheet has no data rows.');
+    return;
+  }
+  const columns = Object.keys(rows[0]);
+  pendingImport.sheetName = sheetName;
+  pendingImport.rows = rows;
+  pendingImport.columns = columns;
+
+  const releaseSel = $('#releaseColSelect');
+  const nameSel = $('#nameColSelect');
+  releaseSel.innerHTML = ''; nameSel.innerHTML = '';
+  columns.forEach(c => {
+    releaseSel.appendChild(new Option(c, c));
+    nameSel.appendChild(new Option(c, c));
+  });
+  releaseSel.value = guessReleaseCol(columns);
+  nameSel.value = guessNameCol(columns);
+
+  renderPreview(columns, rows.slice(0,5));
+}
+
+function renderPreview(columns, rows){
+  const table = $('#previewTable');
+  table.innerHTML = `<thead><tr>${columns.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r => `<tr>${columns.map(c=>`<td>${r[c] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody>`;
+}
+
+$('#cancelImportBtn').addEventListener('click', () => {
+  pendingImport = null;
+  $('#mappingCard').style.display = 'none';
+  fileInput.value = '';
+});
+
+$('#createLedgerBtn').addEventListener('click', async () => {
+  if (!pendingImport) return;
+  const releaseCol = $('#releaseColSelect').value;
+  const nameCol = $('#nameColSelect').value;
+  const name = $('#ledgerNameInput').value.trim() || pendingImport.fileName;
+
+  const ledger = {
+    id: uid(),
+    name,
+    fileName: pendingImport.fileName,
+    sheetName: pendingImport.sheetName,
+    importedAt: new Date().toISOString(),
+    releaseCol, nameCol,
+    columns: pendingImport.columns,
+    rows: pendingImport.rows.map(r => ({
+      id: uid(),
+      data: r,
+      released: isReleased(r[releaseCol])
+    }))
+  };
+
+  const btn = $('#createLedgerBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    await Store.addLedger(ledger);
+    pendingImport = null;
+    $('#mappingCard').style.display = 'none';
+    fileInput.value = '';
+    document.querySelector('nav.tabs button[data-tab="ledgers"]').click();
+  } catch(err){
+    alert('Could not save this ledger to Firestore: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create ledger';
+  }
+});
+
+/* ============================================================
+   LEDGERS PANEL
+   ============================================================ */
+function renderLedgers(){
+  const wrap = $('#ledgerList');
+  const ledgers = Store.all();
+  if (!ledgers.length){
+    wrap.innerHTML = `<div class="empty"><div class="glyph">🗂️</div>No ledgers yet. Import a spreadsheet to create the first one.</div>`;
+    return;
+  }
+  wrap.innerHTML = ledgers.map(l => {
+    const released = l.rows.filter(r=>r.released).length;
+    const pending = l.rows.length - released;
+    return `<div class="ledger-item">
+      <div>
+        <div class="name">${l.name}</div>
+        <div class="meta">${l.fileName} · ${l.rows.length} rows · imported ${fmtDate(l.importedAt)}</div>
+      </div>
+      <div class="counts">
+        <span class="pill released">${released} released</span>
+        <span class="pill pending">${pending} pending</span>
+        <button class="icon-btn" title="Delete ledger" data-del="${l.id}">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+  wrap.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (confirm('Remove this ledger and its rows from the masterlist?')){
+        try { await Store.removeLedger(btn.dataset.del); }
+        catch(err){ alert('Could not delete: ' + err.message); }
+      }
+    });
+  });
+}
+
+/* ============================================================
+   MASTERLIST PANEL
+   ============================================================ */
+function allRecords(){
+  const out = [];
+  Store.all().forEach(l => {
+    l.rows.forEach(r => out.push({
+      ledgerId: l.id, ledgerName: l.name, releaseCol: l.releaseCol, nameCol: l.nameCol,
+      ...r
+    }));
+  });
+  return out;
+}
+
+function populateLedgerFilter(){
+  const sel = $('#ledgerFilter');
+  const current = sel.value;
+  sel.innerHTML = '<option value="all">All ledgers</option>' +
+    Store.all().map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+  sel.value = current && [...sel.options].some(o=>o.value===current) ? current : 'all';
+}
+
+function renderMasterlist(){
+  populateLedgerFilter();
+  const search = $('#searchInput').value.trim().toLowerCase();
+  const status = $('#statusFilter').value;
+  const ledgerId = $('#ledgerFilter').value;
+
+  let records = allRecords();
+  if (ledgerId !== 'all') records = records.filter(r => r.ledgerId === ledgerId);
+  if (status !== 'all') records = records.filter(r => status === 'released' ? r.released : !r.released);
+  if (search){
+    records = records.filter(r => Object.values(r.data).some(v => String(v).toLowerCase().includes(search)));
+  }
+
+  // union of columns across visible records' source ledgers, in first-seen order
+  const columns = [];
+  records.forEach(r => Object.keys(r.data).forEach(c => { if (!columns.includes(c)) columns.push(c); }));
+
+  if (sort.col){
+    records.sort((a,b) => {
+      let av, bv;
+      if (sort.col === '__status'){ av = a.released?1:0; bv = b.released?1:0; }
+      else if (sort.col === '__ledger'){ av = a.ledgerName; bv = b.ledgerName; }
+      else { av = a.data[sort.col]; bv = b.data[sort.col]; }
+      if (av === undefined) av = '';
+      if (bv === undefined) bv = '';
+      if (av < bv) return -1 * sort.dir;
+      if (av > bv) return 1 * sort.dir;
+      return 0;
+    });
+  }
+
+  $('#resultCount').textContent = `${records.length} of ${allRecords().length} records`;
+
+  const table = $('#masterTable');
+  const arrow = col => sort.col === col ? `<span class="arrow">${sort.dir===1?'▲':'▼'}</span>` : '';
+  table.innerHTML = `<thead><tr>
+      <th data-sort="__status">Status ${arrow('__status')}</th>
+      <th data-sort="__ledger">Ledger ${arrow('__ledger')}</th>
+      ${columns.map(c => `<th data-sort="${c}">${c} ${arrow(c)}</th>`).join('')}
+    </tr></thead>
+    <tbody>${records.map(r => `<tr class="ledger-margin">
+        <td><span class="status-tag ${r.released?'released':'pending'}">${r.released?'Released':'Pending'}</span></td>
+        <td>${r.ledgerName}</td>
+        ${columns.map(c => `<td>${r.data[c] ?? ''}</td>`).join('')}
+      </tr>`).join('')}</tbody>`;
+
+  table.querySelectorAll('th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      if (sort.col === col) sort.dir *= -1; else { sort.col = col; sort.dir = 1; }
+      renderMasterlist();
+    });
+  });
+}
+
+['#searchInput'].forEach(sel => $(sel).addEventListener('input', renderMasterlist));
+$('#statusFilter').addEventListener('change', renderMasterlist);
+$('#ledgerFilter').addEventListener('change', renderMasterlist);
+
+/* ============================================================
+   EXPORT / BACKUP
+   ============================================================ */
+$('#exportCsvBtn').addEventListener('click', () => {
+  const records = allRecords();
+  if (!records.length) return alert('No records to export yet.');
+  const columns = [];
+  records.forEach(r => Object.keys(r.data).forEach(c => { if (!columns.includes(c)) columns.push(c); }));
+  const sheetRows = records.map(r => ({
+    Status: r.released ? 'Released' : 'Non-Released',
+    Ledger: r.ledgerName,
+    ...r.data
+  }));
+  const ws = XLSX.utils.json_to_sheet(sheetRows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Masterlist');
+  XLSX.writeFile(wb, `masterlist_${new Date().toISOString().slice(0,10)}.csv`, {bookType:'csv'});
+});
+
+$('#exportJsonBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(Store.all(), null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `case-ledger-backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+});
+
+$('#importJsonBtn').addEventListener('click', () => $('#jsonFileInput').click());
+$('#jsonFileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!Array.isArray(data)) throw new Error('bad format');
+      for (const ledger of data){
+        await Store.addLedger({ ...ledger, id: ledger.id || uid() });
+      }
+      alert(`Restored ${data.length} ledger(s) into Firestore.`);
+    } catch(err){
+      alert('Could not restore that backup: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+/* ============================================================
+   STAMP SUMMARY
+   ============================================================ */
+function updateStamps(){
+  const records = allRecords();
+  const released = records.filter(r=>r.released).length;
+  const pending = records.length - released;
+  $('#stampRow').innerHTML = `
+    <div class="stamp"><span class="num">${records.length}</span><span class="lbl">Total</span></div>
+    <div class="stamp released"><span class="num">${released}</span><span class="lbl">Released</span></div>
+    <div class="stamp pending"><span class="num">${pending}</span><span class="lbl">Non‑Released</span></div>
+  `;
+  $('#ledgerCountTab').textContent = Store.all().length ? `(${Store.all().length})` : '';
+  $('#masterCountTab').textContent = records.length ? `(${records.length})` : '';
+}
+
+/* ============================================================
+   AUTH GATE
+   ============================================================ */
+function refreshAll(){ updateStamps(); renderLedgers(); renderMasterlist(); }
+
+function showApp(user){
+  $('#authScreen').style.display = 'none';
+  $('#mainApp').style.display = 'block';
+  $('#userLine').textContent = user.email || user.uid;
+}
+function showAuth(){
+  $('#authScreen').style.display = 'flex';
+  $('#mainApp').style.display = 'none';
+}
+
+if (!CONFIG_IS_SET){
+  $('#setupNotice').style.display = 'block';
+  $('#authForm').style.display = 'none';
+} else {
+  auth.onAuthStateChanged(user => {
+    if (user){
+      showApp(user);
+      Store.listen(refreshAll);
+    } else {
+      showAuth();
+    }
+  });
+}
+
+let authMode = 'signin'; // or 'signup'
+$('#authToggle').addEventListener('click', e => {
+  if (e.target.tagName !== 'A') return;
+  authMode = authMode === 'signin' ? 'signup' : 'signin';
+  $('#authSubmitBtn').textContent = authMode === 'signin' ? 'Sign in' : 'Create account';
+  $('#authToggle').innerHTML = authMode === 'signin'
+    ? 'No account yet? <a>Create one</a>'
+    : 'Already have an account? <a>Sign in</a>';
+});
+
+$('#authSubmitBtn').addEventListener('click', async () => {
+  const email = $('#authEmail').value.trim();
+  const password = $('#authPassword').value;
+  const errBox = $('#authError');
+  errBox.style.display = 'none';
+  if (!email || !password){
+    errBox.textContent = 'Enter an email and password.';
+    errBox.style.display = 'block';
+    return;
+  }
+  try {
+    if (authMode === 'signin'){
+      await auth.signInWithEmailAndPassword(email, password);
+    } else {
+      await auth.createUserWithEmailAndPassword(email, password);
+    }
+  } catch(err){
+    errBox.textContent = err.message;
+    errBox.style.display = 'block';
+  }
+});
+
+$('#signOutBtn').addEventListener('click', () => auth.signOut());
+</script>
+</body>
+</html>

@@ -144,6 +144,16 @@
   .lc-name{font-weight:600;font-size:14.5px;margin-top:8px;}
   .lc-meta{color:var(--ink-soft);font-size:12px;font-family:'IBM Plex Mono',monospace;margin-top:3px;}
   .lc-counts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;}
+  .folder-toggle{display:flex;gap:6px;margin-top:10px;}
+  .folder-toggle .folder-btn{
+    font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:10.5px;
+    letter-spacing:.03em;text-transform:uppercase;
+    padding:5px 11px;border-radius:20px;border:1.5px solid var(--rule);
+    background:var(--paper-card);color:var(--ink-soft);cursor:pointer;
+  }
+  .folder-toggle .folder-btn:hover{border-color:var(--gold);}
+  .folder-toggle .folder-btn.active.no-folder{border-color:var(--pending);color:var(--pending);background:var(--pending-bg);}
+  .folder-toggle .folder-btn.active.with-folder{border-color:var(--released);color:var(--released);background:var(--released-bg);}
   .pill{
     font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 9px;border-radius:20px;
   }
@@ -842,6 +852,12 @@ function renderLedgers(){
         <span class="pill pending">${pending} pending</span>`;
     }
 
+    const folder = l.folder || null; // null | 'no-folder' | 'with-folder'
+    const folderToggle = `<div class="folder-toggle">
+      <button type="button" class="folder-btn no-folder ${folder==='no-folder'?'active':''}" data-set-folder="${l.id}" data-folder-value="no-folder">No Folder</button>
+      <button type="button" class="folder-btn with-folder ${folder==='with-folder'?'active':''}" data-set-folder="${l.id}" data-folder-value="with-folder">With Folder</button>
+    </div>`;
+
     const header = `<div class="lc-header" data-toggle-expand="${l.id}">
       <div class="lc-toprow">
         <span class="lc-style-tag ${isFin?'financial':'status'}">${isFin?'Financial':'Case Status'}</span>
@@ -850,6 +866,7 @@ function renderLedgers(){
       <div class="lc-name">${chevron} ${l.name}</div>
       <div class="lc-meta">${l.fileName} · ${l.rows.length} rows · imported ${fmtDate(l.importedAt)}</div>
       <div class="lc-counts">${countsHtml}</div>
+      ${folderToggle}
     </div>`;
 
     if (!ui.expanded){
@@ -889,9 +906,15 @@ function renderLedgers(){
       setLedgerPaid(btn.dataset.togglePaid, !current);
     });
   });
+  wrap.querySelectorAll('[data-set-folder]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setLedgerFolder(btn.dataset.setFolder, btn.dataset.folderValue);
+    });
+  });
   wrap.querySelectorAll('[data-toggle-expand]').forEach(row => {
     row.addEventListener('click', (e) => {
-      if (e.target.closest('[data-toggle-paid]') || e.target.closest('[data-del]')) return;
+      if (e.target.closest('[data-toggle-paid]') || e.target.closest('[data-del]') || e.target.closest('[data-set-folder]')) return;
       const id = row.dataset.toggleExpand;
       getLedgerUI(id).expanded = !getLedgerUI(id).expanded;
       renderLedgers();
@@ -990,6 +1013,11 @@ function renderLedgerDetailTable(ledgerId){
 async function setLedgerPaid(ledgerId, paid){
   try { await db.collection('ledgers').doc(ledgerId).update({ paid }); }
   catch(err){ alert('Could not update paid status: ' + err.message); }
+}
+
+async function setLedgerFolder(ledgerId, folder){
+  try { await db.collection('ledgers').doc(ledgerId).update({ folder }); }
+  catch(err){ alert('Could not update folder status: ' + err.message); }
 }
 
 $('#deleteAllLedgersBtn').addEventListener('click', async () => {

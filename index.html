@@ -107,6 +107,15 @@
   .mapping .note{color:var(--ink-soft);font-size:13px;margin-bottom:16px;}
   .field-row{display:grid;grid-template-columns:180px 1fr;gap:14px;align-items:center;margin-bottom:12px;}
   .field-row label{font-size:13px;font-weight:600;color:var(--ink-soft);}
+
+  .sheet-block{border:1px solid var(--rule);border-radius:6px;padding:16px 18px;margin-bottom:14px;background:#F9F9F4;}
+  .sheet-block .sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .sheet-block .sheet-head .tag{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);
+    background:#F0EEE3;padding:3px 9px;border-radius:20px;
+  }
+  .sheet-block.skip{opacity:.5;}
+  .sheet-block .skip-toggle{font-size:12px;color:var(--ink-soft);cursor:pointer;user-select:none;}
   select, input[type=text]{
     font-family:'Inter',sans-serif;font-size:13.5px;padding:8px 10px;
     border:1px solid var(--rule);border-radius:5px;background:#fff;color:var(--ink);width:100%;
@@ -257,35 +266,18 @@
     <div class="dropzone" id="dropzone">
       <div class="glyph">📄</div>
       <div class="main">Drop an Excel file here, or click to browse</div>
-      <div class="sub">.xlsx / .xls / .csv — each import becomes its own ledger entry</div>
+      <div class="sub">.xlsx / .xls / .csv — every sheet in the file becomes its own ledger</div>
       <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
     </div>
 
     <div class="card mapping" id="mappingCard" style="display:none;">
       <h3 id="mapTitle">Confirm columns</h3>
-      <div class="note">The system found these columns. Confirm which one marks a case as released, and which one identifies it.</div>
+      <div class="note">Every sheet in this workbook will become its own ledger. Confirm the Date Released and identifier column for each — the system has already guessed them.</div>
 
-      <div class="field-row" id="sheetPickerRow" style="display:none;">
-        <label>Sheet</label>
-        <select id="sheetSelect"></select>
-      </div>
-      <div class="field-row">
-        <label>Date Released column</label>
-        <select id="releaseColSelect"></select>
-      </div>
-      <div class="field-row">
-        <label>Identifier column</label>
-        <select id="nameColSelect"></select>
-      </div>
-      <div class="field-row">
-        <label>Ledger name</label>
-        <input type="text" id="ledgerNameInput" placeholder="e.g. July 2026 OEC Applications">
-      </div>
-
-      <div class="preview-table"><table class="master" id="previewTable"></table></div>
+      <div id="sheetBlocks"></div>
 
       <div class="actions">
-        <button class="btn" id="createLedgerBtn">Create ledger</button>
+        <button class="btn" id="createLedgerBtn">Create ledgers</button>
         <button class="btn secondary" id="cancelImportBtn">Cancel</button>
       </div>
     </div>
@@ -379,7 +371,7 @@ const Store = {
 /* ============================================================
    STATE
    ============================================================ */
-let pendingImport = null; // {columns, sheetRows, workbook, sheetNames}
+let pendingImport = null; // {fileName, sheets:[{sheetName, rows, columns, releaseCol, nameCol, ledgerName}]}
 let sort = { col: null, dir: 1 };
 
 /* ============================================================
@@ -421,7 +413,7 @@ $$('nav.tabs button').forEach(btn => {
 });
 
 /* ============================================================
-   IMPORT FLOW
+   IMPORT FLOW — every sheet in the workbook becomes its own ledger
    ============================================================ */
 const dropzone = $('#dropzone');
 const fileInput = $('#fileInput');
@@ -436,52 +428,81 @@ function handleFile(file){
   reader.onload = e => {
     const data = new Uint8Array(e.target.result);
     const workbook = XLSX.read(data, {type:'array', cellDates:true});
-    pendingImport = { workbook, fileName: file.name };
-    const sheetPickerRow = $('#sheetPickerRow');
-    const sheetSelect = $('#sheetSelect');
-    sheetSelect.innerHTML = '';
-    workbook.SheetNames.forEach(n => {
-      const o = document.createElement('option'); o.value = n; o.textContent = n; sheetSelect.appendChild(o);
+
+    // Build one pending sheet entry per non-empty sheet
+    pendingImport = { fileName: file.name, sheets: [] };
+    workbook.SheetNames.forEach(sheetName => {
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      if (!rows.length) return; // skip genuinely empty sheets
+      const columns = Object.keys(rows[0]);
+      pendingImport.sheets.push({
+        sheetName,
+        rows,
+        columns,
+        releaseCol: guessReleaseCol(columns),
+        nameCol: guessNameCol(columns),
+        ledgerName: workbook.SheetNames.length > 1
+          ? sheetName
+          : file.name.replace(/\.(xlsx|xls|csv)$/i,'')
+      });
     });
-    sheetPickerRow.style.display = workbook.SheetNames.length > 1 ? 'grid' : 'none';
-    sheetSelect.onchange = () => loadSheet(sheetSelect.value);
-    loadSheet(workbook.SheetNames[0]);
-    $('#ledgerNameInput').value = file.name.replace(/\.(xlsx|xls|csv)$/i,'');
+
+    if (!pendingImport.sheets.length){
+      alert('No sheets with data rows were found in that file.');
+      pendingImport = null;
+      return;
+    }
+
+    renderSheetBlocks();
     $('#mappingCard').style.display = 'block';
     $('#mappingCard').scrollIntoView({behavior:'smooth', block:'nearest'});
   };
   reader.readAsArrayBuffer(file);
 }
 
-function loadSheet(sheetName){
-  const sheet = pendingImport.workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
-  if (!rows.length){
-    alert('That sheet has no data rows.');
-    return;
-  }
-  const columns = Object.keys(rows[0]);
-  pendingImport.sheetName = sheetName;
-  pendingImport.rows = rows;
-  pendingImport.columns = columns;
+function renderSheetBlocks(){
+  const wrap = $('#sheetBlocks');
+  wrap.innerHTML = pendingImport.sheets.map((s, i) => `
+    <div class="sheet-block" data-idx="${i}">
+      <div class="sheet-head">
+        <span class="tag">${s.rows.length} rows</span>
+        <label class="skip-toggle"><input type="checkbox" class="skip-check" checked> Import this sheet</label>
+      </div>
+      <div class="field-row">
+        <label>Ledger name</label>
+        <input type="text" class="ledger-name-input" value="${s.ledgerName}">
+      </div>
+      <div class="field-row">
+        <label>Date Released column</label>
+        <select class="release-col-select">
+          ${s.columns.map(c => `<option value="${c}" ${c===s.releaseCol?'selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field-row">
+        <label>Identifier column</label>
+        <select class="name-col-select">
+          ${s.columns.map(c => `<option value="${c}" ${c===s.nameCol?'selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  `).join('');
 
-  const releaseSel = $('#releaseColSelect');
-  const nameSel = $('#nameColSelect');
-  releaseSel.innerHTML = ''; nameSel.innerHTML = '';
-  columns.forEach(c => {
-    releaseSel.appendChild(new Option(c, c));
-    nameSel.appendChild(new Option(c, c));
+  wrap.querySelectorAll('.sheet-block').forEach(block => {
+    const idx = Number(block.dataset.idx);
+    block.querySelector('.skip-check').addEventListener('change', e => {
+      block.classList.toggle('skip', !e.target.checked);
+    });
+    block.querySelector('.ledger-name-input').addEventListener('input', e => {
+      pendingImport.sheets[idx].ledgerName = e.target.value;
+    });
+    block.querySelector('.release-col-select').addEventListener('change', e => {
+      pendingImport.sheets[idx].releaseCol = e.target.value;
+    });
+    block.querySelector('.name-col-select').addEventListener('change', e => {
+      pendingImport.sheets[idx].nameCol = e.target.value;
+    });
   });
-  releaseSel.value = guessReleaseCol(columns);
-  nameSel.value = guessNameCol(columns);
-
-  renderPreview(columns, rows.slice(0,5));
-}
-
-function renderPreview(columns, rows){
-  const table = $('#previewTable');
-  table.innerHTML = `<thead><tr>${columns.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(r => `<tr>${columns.map(c=>`<td>${r[c] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody>`;
 }
 
 $('#cancelImportBtn').addEventListener('click', () => {
@@ -492,37 +513,43 @@ $('#cancelImportBtn').addEventListener('click', () => {
 
 $('#createLedgerBtn').addEventListener('click', async () => {
   if (!pendingImport) return;
-  const releaseCol = $('#releaseColSelect').value;
-  const nameCol = $('#nameColSelect').value;
-  const name = $('#ledgerNameInput').value.trim() || pendingImport.fileName;
+  const blocks = $$('#sheetBlocks .sheet-block');
+  const toImport = pendingImport.sheets.filter((s, i) => blocks[i].querySelector('.skip-check').checked);
 
-  const ledger = {
-    id: uid(),
-    name,
-    fileName: pendingImport.fileName,
-    sheetName: pendingImport.sheetName,
-    importedAt: new Date().toISOString(),
-    releaseCol, nameCol,
-    columns: pendingImport.columns,
-    rows: pendingImport.rows.map(r => ({
-      id: uid(),
-      data: r,
-      released: isReleased(r[releaseCol])
-    }))
-  };
+  if (!toImport.length){
+    alert('Select at least one sheet to import.');
+    return;
+  }
 
   const btn = $('#createLedgerBtn');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = `Saving ${toImport.length} ledger(s)…`;
   try {
-    await Store.addLedger(ledger);
+    for (const s of toImport){
+      const ledger = {
+        id: uid(),
+        name: s.ledgerName.trim() || s.sheetName,
+        fileName: pendingImport.fileName,
+        sheetName: s.sheetName,
+        importedAt: new Date().toISOString(),
+        releaseCol: s.releaseCol,
+        nameCol: s.nameCol,
+        columns: s.columns,
+        rows: s.rows.map(r => ({
+          id: uid(),
+          data: r,
+          released: isReleased(r[s.releaseCol])
+        }))
+      };
+      await Store.addLedger(ledger);
+    }
     pendingImport = null;
     $('#mappingCard').style.display = 'none';
     fileInput.value = '';
     document.querySelector('nav.tabs button[data-tab="ledgers"]').click();
   } catch(err){
-    alert('Could not save this ledger to Firestore: ' + err.message);
+    alert('Could not save one or more ledgers to Firestore: ' + err.message);
   } finally {
-    btn.disabled = false; btn.textContent = 'Create ledger';
+    btn.disabled = false; btn.textContent = 'Create ledgers';
   }
 });
 

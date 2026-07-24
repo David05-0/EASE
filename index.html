@@ -307,6 +307,13 @@
         <label>Sheet</label>
         <select id="sheetSelect"></select>
       </div>
+      <div class="field-row" id="allSheetsRow" style="display:none;">
+        <label>&nbsp;</label>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:500;color:var(--ink);">
+          <input type="checkbox" id="allSheetsChk" style="width:auto;">
+          Import every sheet in this file (one ledger per sheet)
+        </label>
+      </div>
 
       <div class="field-row">
         <label>Ledger style</label>
@@ -562,12 +569,23 @@ function handleFile(file){
     pendingImport = { workbook, fileName: file.name };
     $('#styleStatusBtn').click();
     const sheetPickerRow = $('#sheetPickerRow');
+    const allSheetsRow = $('#allSheetsRow');
+    const allSheetsChk = $('#allSheetsChk');
     const sheetSelect = $('#sheetSelect');
     sheetSelect.innerHTML = '';
     workbook.SheetNames.forEach(n => {
       const o = document.createElement('option'); o.value = n; o.textContent = n; sheetSelect.appendChild(o);
     });
-    sheetPickerRow.style.display = workbook.SheetNames.length > 1 ? 'grid' : 'none';
+    const multiSheet = workbook.SheetNames.length > 1;
+    sheetPickerRow.style.display = multiSheet ? 'grid' : 'none';
+    allSheetsRow.style.display = multiSheet ? 'grid' : 'none';
+    allSheetsChk.checked = false;
+    $('#createLedgerBtn').textContent = 'Create ledger';
+    allSheetsChk.onchange = () => {
+      sheetSelect.disabled = allSheetsChk.checked;
+      $('#createLedgerBtn').textContent = allSheetsChk.checked ? `Create ${workbook.SheetNames.length} ledgers` : 'Create ledger';
+    };
+    sheetSelect.disabled = false;
     sheetSelect.onchange = () => loadSheet(sheetSelect.value);
     loadSheet(workbook.SheetNames[0]);
     $('#ledgerNameInput').value = file.name.replace(/\.(xlsx|xls|csv)$/i,'');
@@ -644,79 +662,116 @@ $('#cancelImportBtn').addEventListener('click', () => {
   pendingImport = null;
   $('#mappingCard').style.display = 'none';
   fileInput.value = '';
+  if ($('#allSheetsChk')) $('#allSheetsChk').checked = false;
 });
+
+function resolveCol(preferred, columns, guessFn){
+  if (preferred && preferred !== '__none__' && columns.includes(preferred)) return preferred;
+  return guessFn(columns);
+}
+
+function buildFinancialRows(sheetRows, columns, mapping){
+  const dateCol = resolveCol(mapping.dateCol, columns, guessDateCol);
+  const checkCol = resolveCol(mapping.checkCol, columns, guessCheckCol);
+  const particularsCol = resolveCol(mapping.particularsCol, columns, guessParticularsCol);
+  const debitCol = resolveCol(mapping.debitCol, columns, guessDebitCol);
+  const creditCol = resolveCol(mapping.creditCol, columns, guessCreditCol);
+  const remarksCol = (mapping.remarksCol !== '__none__' && columns.includes(mapping.remarksCol)) ? mapping.remarksCol : guessRemarksCol(columns);
+  const groupCol = (mapping.groupCol !== '__none__' && columns.includes(mapping.groupCol)) ? mapping.groupCol : guessGroupCol(columns);
+  const rows = sheetRows.map(r => {
+    const groupVal = groupCol !== '__none__' ? String(r[groupCol] ?? '').trim() : '';
+    return {
+      id: uid(),
+      data: r,
+      isGroupRow: !!groupVal,
+      group: groupVal,
+      date: r[dateCol] instanceof Date ? r[dateCol].toISOString() : (r[dateCol] ?? ''),
+      checkNo: r[checkCol] ?? '',
+      particulars: r[particularsCol] ?? '',
+      debit: r[debitCol] ?? '',
+      credit: r[creditCol] ?? '',
+      remarks: remarksCol !== '__none__' ? (r[remarksCol] ?? '') : ''
+    };
+  });
+  return { rows, dateCol, checkCol, particularsCol, debitCol, creditCol, remarksCol, groupCol };
+}
+
+function buildStatusRows(sheetRows, columns, mapping){
+  const releaseCol = resolveCol(mapping.releaseCol, columns, guessReleaseCol);
+  const nameCol = resolveCol(mapping.nameCol, columns, guessNameCol);
+  const rows = sheetRows.map(r => ({ id: uid(), data: r, released: isReleased(r[releaseCol]) }));
+  return { rows, releaseCol, nameCol };
+}
 
 $('#createLedgerBtn').addEventListener('click', async () => {
   if (!pendingImport) return;
-  const name = $('#ledgerNameInput').value.trim() || pendingImport.fileName;
+  const baseName = $('#ledgerNameInput').value.trim() || pendingImport.fileName.replace(/\.(xlsx|xls|csv)$/i,'');
+  const allSheetsChk = $('#allSheetsChk');
+  const importAll = !!(allSheetsChk && allSheetsChk.checked);
+  const sheetNames = importAll ? pendingImport.workbook.SheetNames : [pendingImport.sheetName];
 
-  let ledger;
-  if (importStyle === 'financial'){
-    const dateCol = $('#dateColSelect').value;
-    const checkCol = $('#checkColSelect').value;
-    const particularsCol = $('#particularsColSelect').value;
-    const debitCol = $('#debitColSelect').value;
-    const creditCol = $('#creditColSelect').value;
-    const remarksCol = $('#remarksColSelect').value;
-    const groupCol = $('#groupColSelect').value;
-
-    ledger = {
-      id: uid(),
-      name,
-      style: 'financial',
-      fileName: pendingImport.fileName,
-      sheetName: pendingImport.sheetName,
-      importedAt: new Date().toISOString(),
-      dateCol, checkCol, particularsCol, debitCol, creditCol, remarksCol, groupCol,
-      columns: pendingImport.columns,
-      rows: pendingImport.rows.map(r => {
-        const groupVal = groupCol !== '__none__' ? String(r[groupCol] ?? '').trim() : '';
-        return {
-          id: uid(),
-          data: r,
-          isGroupRow: !!groupVal,
-          group: groupVal,
-          date: r[dateCol] instanceof Date ? r[dateCol].toISOString() : (r[dateCol] ?? ''),
-          checkNo: r[checkCol] ?? '',
-          particulars: r[particularsCol] ?? '',
-          debit: r[debitCol] ?? '',
-          credit: r[creditCol] ?? '',
-          remarks: remarksCol !== '__none__' ? (r[remarksCol] ?? '') : ''
-        };
-      })
-    };
-  } else {
-    const releaseCol = $('#releaseColSelect').value;
-    const nameCol = $('#nameColSelect').value;
-    ledger = {
-      id: uid(),
-      name,
-      style: 'status',
-      fileName: pendingImport.fileName,
-      sheetName: pendingImport.sheetName,
-      importedAt: new Date().toISOString(),
-      releaseCol, nameCol,
-      columns: pendingImport.columns,
-      rows: pendingImport.rows.map(r => ({
-        id: uid(),
-        data: r,
-        released: isReleased(r[releaseCol])
-      }))
-    };
-  }
+  const mapping = importStyle === 'financial' ? {
+    dateCol: $('#dateColSelect').value, checkCol: $('#checkColSelect').value,
+    particularsCol: $('#particularsColSelect').value, debitCol: $('#debitColSelect').value,
+    creditCol: $('#creditColSelect').value, remarksCol: $('#remarksColSelect').value,
+    groupCol: $('#groupColSelect').value
+  } : {
+    releaseCol: $('#releaseColSelect').value, nameCol: $('#nameColSelect').value
+  };
 
   const btn = $('#createLedgerBtn');
-  btn.disabled = true; btn.textContent = 'Saving…';
+  const btnLabelDefault = btn.textContent;
+  btn.disabled = true;
+
   try {
-    await Store.addLedger(ledger);
+    const ledgersToCreate = [];
+    for (const sheetName of sheetNames){
+      const sheet = pendingImport.workbook.Sheets[sheetName];
+      const sheetRows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      if (!sheetRows.length) continue;
+      const columns = Object.keys(sheetRows[0]);
+      const ledgerName = sheetNames.length > 1 ? `${baseName} — ${sheetName}` : baseName;
+
+      if (importStyle === 'financial'){
+        const built = buildFinancialRows(sheetRows, columns, mapping);
+        ledgersToCreate.push({
+          id: uid(), name: ledgerName, style: 'financial',
+          fileName: pendingImport.fileName, sheetName,
+          importedAt: new Date().toISOString(),
+          dateCol: built.dateCol, checkCol: built.checkCol, particularsCol: built.particularsCol,
+          debitCol: built.debitCol, creditCol: built.creditCol, remarksCol: built.remarksCol, groupCol: built.groupCol,
+          columns, rows: built.rows
+        });
+      } else {
+        const built = buildStatusRows(sheetRows, columns, mapping);
+        ledgersToCreate.push({
+          id: uid(), name: ledgerName, style: 'status',
+          fileName: pendingImport.fileName, sheetName,
+          importedAt: new Date().toISOString(),
+          releaseCol: built.releaseCol, nameCol: built.nameCol,
+          columns, rows: built.rows
+        });
+      }
+    }
+
+    if (!ledgersToCreate.length){
+      alert('No data rows found to import.');
+      return;
+    }
+
+    for (let i = 0; i < ledgersToCreate.length; i++){
+      btn.textContent = ledgersToCreate.length > 1 ? `Saving ${i+1} of ${ledgersToCreate.length}…` : 'Saving…';
+      await Store.addLedger(ledgersToCreate[i]);
+    }
+
     pendingImport = null;
     $('#mappingCard').style.display = 'none';
     fileInput.value = '';
     document.querySelector('nav.tabs button[data-tab="ledgers"]').click();
   } catch(err){
-    alert('Could not save this ledger to Firestore: ' + err.message);
+    alert('Could not save to Firestore: ' + err.message);
   } finally {
-    btn.disabled = false; btn.textContent = 'Create ledger';
+    btn.disabled = false; btn.textContent = btnLabelDefault;
   }
 });
 

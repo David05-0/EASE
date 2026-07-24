@@ -215,6 +215,23 @@
   }
   .fin-summary{display:flex;gap:18px;margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--ink-soft);}
   .fin-summary b{color:var(--ink);}
+
+  .ledger-cards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+  .ledger-card{
+    display:flex;flex-direction:column;gap:4px;text-align:left;cursor:pointer;
+    background:var(--paper-card);border:1px solid var(--rule);border-radius:6px;
+    padding:10px 14px;min-width:180px;flex:1 1 220px;
+    font-family:'Inter',sans-serif;transition:border-color .15s, box-shadow .15s;
+  }
+  .ledger-card:hover{border-color:var(--gold);box-shadow:var(--shadow);}
+  .ledger-card .card-name{font-weight:600;font-size:13.5px;}
+  .ledger-card .card-meta{font-size:11.5px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
+  .ledger-card .card-style{
+    align-self:flex-start;font-family:'IBM Plex Mono',monospace;font-size:10px;
+    letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:20px;
+  }
+  .ledger-card .card-style.financial{background:var(--released-bg);color:var(--released);}
+  .ledger-card .card-style.status{background:var(--pending-bg);color:var(--pending);}
   .result-count{color:var(--ink-soft);font-size:12.5px;margin-bottom:8px;font-family:'IBM Plex Mono',monospace;}
   footer.note{margin-top:26px;color:var(--ink-soft);font-size:12px;line-height:1.6;border-top:1px solid var(--rule);padding-top:14px;}
   code{background:#F0EEE3;padding:1px 5px;border-radius:3px;font-family:'IBM Plex Mono',monospace;}
@@ -412,6 +429,7 @@
       <input type="file" id="jsonFileInput" accept=".json" style="display:none;">
     </div>
     <div class="result-count" id="resultCount"></div>
+    <div id="allLedgersCards" style="display:none;"></div>
     <div class="table-wrap" id="genericTableWrap"><table class="master" id="masterTable"></table></div>
     <div id="finLedgerWrap" style="display:none;"></div>
   </section>
@@ -882,6 +900,7 @@ function renderMasterlist(){
 
   const selectedLedger = ledgerId !== 'all' ? Store.all().find(l => l.id === ledgerId) : null;
   if (selectedLedger && selectedLedger.style === 'financial'){
+    $('#allLedgersCards').style.display = 'none';
     $('#genericTableWrap').style.display = 'none';
     $('#finLedgerWrap').style.display = 'block';
     renderFinancialLedger(selectedLedger, search);
@@ -890,6 +909,30 @@ function renderMasterlist(){
   }
   $('#genericTableWrap').style.display = 'block';
   $('#finLedgerWrap').style.display = 'none';
+
+  const cardsWrap = $('#allLedgersCards');
+  if (ledgerId === 'all' && Store.all().length){
+    cardsWrap.style.display = 'block';
+    cardsWrap.innerHTML = `<div class="ledger-cards">${Store.all().map(l => {
+      const isFin = l.style === 'financial';
+      const meta = isFin
+        ? `₱${fmtMoney(l.rows.reduce((s,r)=>s+(parseFloat(r.debit)||0),0))} debit · ${l.rows.length} rows`
+        : `${l.rows.filter(r=>r.released).length} released · ${l.rows.length} rows`;
+      return `<button type="button" class="ledger-card" data-open-ledger="${l.id}">
+        <span class="card-style ${isFin?'financial':'status'}">${isFin ? 'Financial' : 'Case Status'}</span>
+        <span class="card-name">${l.name}</span>
+        <span class="card-meta">${meta}</span>
+      </button>`;
+    }).join('')}</div>`;
+    cardsWrap.querySelectorAll('[data-open-ledger]').forEach(card => {
+      card.addEventListener('click', () => {
+        $('#ledgerFilter').value = card.dataset.openLedger;
+        renderMasterlist();
+      });
+    });
+  } else {
+    cardsWrap.style.display = 'none';
+  }
 
   let records = allRecords().filter(r => r.ledgerStyle !== 'financial');
   const financialHiddenCount = allRecords().length - records.length;

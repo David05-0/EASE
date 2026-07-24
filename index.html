@@ -892,6 +892,16 @@ function populateLedgerFilter(){
   sel.value = current && [...sel.options].some(o=>o.value===current) ? current : 'all';
 }
 
+function ledgerRowMatchesSearch(l, r, search){
+  if (l.style === 'financial'){
+    return String(r.particulars||'').toLowerCase().includes(search) ||
+           String(r.checkNo||'').toLowerCase().includes(search) ||
+           String(r.remarks||'').toLowerCase().includes(search) ||
+           String(r.group||'').toLowerCase().includes(search);
+  }
+  return Object.values(r.data).some(v => String(v).toLowerCase().includes(search));
+}
+
 function renderMasterlist(){
   populateLedgerFilter();
   const search = $('#searchInput').value.trim().toLowerCase();
@@ -913,17 +923,34 @@ function renderMasterlist(){
   const cardsWrap = $('#allLedgersCards');
   if (ledgerId === 'all' && Store.all().length){
     cardsWrap.style.display = 'block';
-    cardsWrap.innerHTML = `<div class="ledger-cards">${Store.all().map(l => {
-      const isFin = l.style === 'financial';
-      const meta = isFin
-        ? `₱${fmtMoney(l.rows.reduce((s,r)=>s+(parseFloat(r.debit)||0),0))} debit · ${l.rows.length} rows`
-        : `${l.rows.filter(r=>r.released).length} released · ${l.rows.length} rows`;
-      return `<button type="button" class="ledger-card" data-open-ledger="${l.id}">
-        <span class="card-style ${isFin?'financial':'status'}">${isFin ? 'Financial' : 'Case Status'}</span>
-        <span class="card-name">${l.name}</span>
-        <span class="card-meta">${meta}</span>
-      </button>`;
-    }).join('')}</div>`;
+    let ledgersToShow = Store.all();
+    if (search){
+      ledgersToShow = ledgersToShow.filter(l =>
+        l.name.toLowerCase().includes(search) ||
+        l.rows.some(r => ledgerRowMatchesSearch(l, r, search))
+      );
+    }
+    if (!ledgersToShow.length){
+      cardsWrap.innerHTML = `<div class="empty" style="padding:20px;">No ledgers match “${$('#searchInput').value.trim()}”.</div>`;
+    } else {
+      cardsWrap.innerHTML = `<div class="ledger-cards">${ledgersToShow.map(l => {
+        const isFin = l.style === 'financial';
+        let meta;
+        if (search){
+          const matchCount = l.rows.filter(r => ledgerRowMatchesSearch(l, r, search)).length;
+          meta = `${matchCount} matching row${matchCount===1?'':'s'}`;
+        } else {
+          meta = isFin
+            ? `₱${fmtMoney(l.rows.reduce((s,r)=>s+(parseFloat(r.debit)||0),0))} debit · ${l.rows.length} rows`
+            : `${l.rows.filter(r=>r.released).length} released · ${l.rows.length} rows`;
+        }
+        return `<button type="button" class="ledger-card" data-open-ledger="${l.id}">
+          <span class="card-style ${isFin?'financial':'status'}">${isFin ? 'Financial' : 'Case Status'}</span>
+          <span class="card-name">${l.name}</span>
+          <span class="card-meta">${meta}</span>
+        </button>`;
+      }).join('')}</div>`;
+    }
     cardsWrap.querySelectorAll('[data-open-ledger]').forEach(card => {
       card.addEventListener('click', () => {
         $('#ledgerFilter').value = card.dataset.openLedger;

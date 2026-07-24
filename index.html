@@ -128,6 +128,7 @@
     padding:16px 20px;border-bottom:1px solid var(--rule);
   }
   .ledger-item:last-child{border-bottom:none;}
+  .ledger-block:last-child > *:last-child{border-bottom:none;}
   .ledger-item .name{font-weight:600;font-size:14.5px;}
   .ledger-item .meta{color:var(--ink-soft);font-size:12.5px;font-family:'IBM Plex Mono',monospace;margin-top:3px;}
   .ledger-item .counts{display:flex;gap:8px;align-items:center;}
@@ -506,6 +507,16 @@ let pendingImport = null; // {columns, sheetRows, workbook, sheetNames}
 let sort = { col: null, dir: 1 };
 let importStyle = 'status'; // 'status' | 'financial'
 
+// Per-ledger UI state for the expandable cards on the Ledgers tab
+const ledgerUI = {};
+function getLedgerUI(id){
+  if (!ledgerUI[id]) ledgerUI[id] = { expanded:false, search:'', status:'all', sort:{col:null, dir:1} };
+  return ledgerUI[id];
+}
+function escapeAttr(s){
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
 /* ============================================================
    HELPERS
    ============================================================ */
@@ -812,13 +823,16 @@ function renderLedgers(){
     return;
   }
   wrap.innerHTML = ledgers.map(l => {
+    const ui = getLedgerUI(l.id);
+    const chevron = ui.expanded ? '▾' : '▸';
+    let summary;
     if (l.style === 'financial'){
       const totalDebit = l.rows.reduce((s,r)=> s + (parseFloat(r.debit)||0), 0);
       const totalCredit = l.rows.reduce((s,r)=> s + (parseFloat(r.credit)||0), 0);
       const paid = !!l.paid;
-      return `<div class="ledger-item">
+      summary = `<div class="ledger-item" data-toggle-expand="${l.id}" style="cursor:pointer;">
         <div>
-          <div class="name">${l.name}</div>
+          <div class="name">${chevron} ${l.name}</div>
           <div class="meta">${l.fileName} · ${l.rows.length} rows · imported ${fmtDate(l.importedAt)}</div>
         </div>
         <div class="counts">
@@ -828,23 +842,46 @@ function renderLedgers(){
           <button class="icon-btn" title="Delete ledger" data-del="${l.id}">✕</button>
         </div>
       </div>`;
+    } else {
+      const released = l.rows.filter(r=>r.released).length;
+      const pending = l.rows.length - released;
+      summary = `<div class="ledger-item" data-toggle-expand="${l.id}" style="cursor:pointer;">
+        <div>
+          <div class="name">${chevron} ${l.name}</div>
+          <div class="meta">${l.fileName} · ${l.rows.length} rows · imported ${fmtDate(l.importedAt)}</div>
+        </div>
+        <div class="counts">
+          <span class="pill released">${released} released</span>
+          <span class="pill pending">${pending} pending</span>
+          <button class="icon-btn" title="Delete ledger" data-del="${l.id}">✕</button>
+        </div>
+      </div>`;
     }
-    const released = l.rows.filter(r=>r.released).length;
-    const pending = l.rows.length - released;
-    return `<div class="ledger-item">
-      <div>
-        <div class="name">${l.name}</div>
-        <div class="meta">${l.fileName} · ${l.rows.length} rows · imported ${fmtDate(l.importedAt)}</div>
+
+    if (!ui.expanded){
+      return `<div class="ledger-block" data-ledger-id="${l.id}">${summary}</div>`;
+    }
+
+    const detail = `<div class="ledger-detail" style="padding:14px 20px 20px;border-bottom:1px solid var(--rule);">
+      <div class="toolbar" style="margin-bottom:10px;">
+        <input type="text" data-ledger-search="${l.id}" placeholder="Search this ledger…" value="${escapeAttr(ui.search)}">
+        ${l.style !== 'financial' ? `<select data-ledger-status="${l.id}">
+          <option value="all">All statuses</option>
+          <option value="released">Released only</option>
+          <option value="pending">Non‑Released only</option>
+        </select>` : ''}
+        <div class="spacer"></div>
+        <span class="result-count" style="margin:0;" data-ledger-count="${l.id}"></span>
       </div>
-      <div class="counts">
-        <span class="pill released">${released} released</span>
-        <span class="pill pending">${pending} pending</span>
-        <button class="icon-btn" title="Delete ledger" data-del="${l.id}">✕</button>
-      </div>
+      <div data-ledger-table="${l.id}"></div>
     </div>`;
+
+    return `<div class="ledger-block" data-ledger-id="${l.id}">${summary}${detail}</div>`;
   }).join('');
+
   wrap.querySelectorAll('[data-del]').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
       if (confirm('Remove this ledger and its rows from the masterlist?')){
         try { await Store.removeLedger(btn.dataset.del); }
         catch(err){ alert('Could not delete: ' + err.message); }
@@ -852,11 +889,108 @@ function renderLedgers(){
     });
   });
   wrap.querySelectorAll('[data-toggle-paid]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const current = btn.dataset.paid === 'true';
       setLedgerPaid(btn.dataset.togglePaid, !current);
     });
   });
+  wrap.querySelectorAll('[data-toggle-expand]').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('[data-toggle-paid]') || e.target.closest('[data-del]')) return;
+      const id = row.dataset.toggleExpand;
+      getLedgerUI(id).expanded = !getLedgerUI(id).expanded;
+      renderLedgers();
+    });
+  });
+
+  // Wire up each expanded ledger's search/filter controls, then render its table.
+  ledgers.forEach(l => {
+    const ui = getLedgerUI(l.id);
+    if (!ui.expanded) return;
+    const searchInput = wrap.querySelector(`[data-ledger-search="${l.id}"]`);
+    const statusSelect = wrap.querySelector(`[data-ledger-status="${l.id}"]`);
+    if (searchInput){
+      searchInput.addEventListener('click', e => e.stopPropagation());
+      searchInput.addEventListener('input', () => {
+        ui.search = searchInput.value;
+        renderLedgerDetailTable(l.id);
+      });
+    }
+    if (statusSelect){
+      statusSelect.value = ui.status;
+      statusSelect.addEventListener('click', e => e.stopPropagation());
+      statusSelect.addEventListener('change', () => {
+        ui.status = statusSelect.value;
+        renderLedgerDetailTable(l.id);
+      });
+    }
+    renderLedgerDetailTable(l.id);
+  });
+}
+
+function renderLedgerDetailTable(ledgerId){
+  const l = Store.all().find(x => x.id === ledgerId);
+  if (!l) return;
+  const ui = getLedgerUI(ledgerId);
+  const container = $(`#ledgerList [data-ledger-table="${ledgerId}"]`);
+  const countEl = $(`#ledgerList [data-ledger-count="${ledgerId}"]`);
+  if (!container) return;
+  const search = ui.search.trim().toLowerCase();
+
+  if (l.style === 'financial'){
+    renderFinancialLedger(l, search, container);
+    if (countEl) countEl.textContent = `${l.rows.length} rows in this ledger`;
+    return;
+  }
+
+  let rows = l.rows;
+  if (search){
+    rows = rows.filter(r => Object.values(r.data).some(v => String(v).toLowerCase().includes(search)));
+  }
+  if (ui.status !== 'all'){
+    rows = rows.filter(r => ui.status === 'released' ? r.released : !r.released);
+  }
+  if (ui.sort.col){
+    rows = [...rows].sort((a,b) => {
+      let av, bv;
+      if (ui.sort.col === '__status'){ av = a.released?1:0; bv = b.released?1:0; }
+      else { av = a.data[ui.sort.col]; bv = b.data[ui.sort.col]; }
+      if (av === undefined) av = '';
+      if (bv === undefined) bv = '';
+      if (av < bv) return -1 * ui.sort.dir;
+      if (av > bv) return 1 * ui.sort.dir;
+      return 0;
+    });
+  }
+
+  const columns = l.columns && l.columns.length ? l.columns : (() => {
+    const cols = [];
+    l.rows.forEach(r => Object.keys(r.data).forEach(c => { if (!cols.includes(c)) cols.push(c); }));
+    return cols;
+  })();
+
+  const arrow = col => ui.sort.col === col ? `<span class="arrow">${ui.sort.dir===1?'▲':'▼'}</span>` : '';
+  container.innerHTML = `<div class="table-wrap"><table class="master">
+      <thead><tr>
+        <th data-lsort="__status">Status ${arrow('__status')}</th>
+        ${columns.map(c => `<th data-lsort="${c}">${c} ${arrow(c)}</th>`).join('')}
+      </tr></thead>
+      <tbody>${rows.length ? rows.map(r => `<tr>
+          <td><span class="status-tag ${r.released?'released':'pending'}">${r.released?'Released':'Pending'}</span></td>
+          ${columns.map(c => `<td>${r.data[c] ?? ''}</td>`).join('')}
+        </tr>`).join('') : `<tr><td colspan="${columns.length+1}" style="text-align:center;color:var(--ink-soft);">No rows match.</td></tr>`}</tbody>
+    </table></div>`;
+
+  container.querySelectorAll('th[data-lsort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.lsort;
+      if (ui.sort.col === col) ui.sort.dir *= -1; else { ui.sort.col = col; ui.sort.dir = 1; }
+      renderLedgerDetailTable(ledgerId);
+    });
+  });
+
+  if (countEl) countEl.textContent = `${rows.length} of ${l.rows.length} rows`;
 }
 
 async function setLedgerPaid(ledgerId, paid){
@@ -1104,8 +1238,8 @@ async function sortFinLedgerByDate(ledgerId){
   catch(err){ alert('Could not sort by date: ' + err.message); }
 }
 
-function renderFinancialLedger(ledger, search){
-  const wrap = $('#finLedgerWrap');
+function renderFinancialLedger(ledger, search, wrap){
+  wrap = wrap || $('#finLedgerWrap');
   let rows = ledger.rows;
   if (search){
     rows = rows.filter(r =>
@@ -1145,7 +1279,7 @@ function renderFinancialLedger(ledger, search){
   const finPaid = !!ledger.paid;
   wrap.innerHTML = `
     <div class="actions" style="margin-bottom:12px;">
-      <button type="button" class="pill ${finPaid?'released':'pending'}" id="finPaidToggle" data-paid="${finPaid}" style="border:none;cursor:pointer;font-size:12.5px;padding:6px 14px;">${finPaid ? "✓ ALL FA's Paid" : "Not yet ALL FA's Paid"}</button>
+      <button type="button" class="pill ${finPaid?'released':'pending'}" data-fin-paid-toggle data-paid="${finPaid}" style="border:none;cursor:pointer;font-size:12.5px;padding:6px 14px;">${finPaid ? "✓ ALL FA's Paid" : "Not yet ALL FA's Paid"}</button>
     </div>
     <div class="fin-hint">Click any cell to edit it directly — date, check no., particulars, debit, credit, remarks, and section headers all save automatically. Balance is calculated, not editable, and resets after each section header. Use "Sort dates" to reorder rows oldest → latest within each section.</div>
     <div class="table-wrap"><table class="finledger">
@@ -1156,9 +1290,9 @@ function renderFinancialLedger(ledger, search){
       <tbody>${bodyRows || `<tr><td colspan="8" style="text-align:center;color:var(--ink-soft);">No rows match.</td></tr>`}</tbody>
     </table></div>
     <div class="actions" style="margin-top:12px;">
-      <button class="btn secondary" id="finAddRowBtn">+ Add row</button>
-      <button class="btn secondary" id="finAddGroupBtn">+ Add section header</button>
-      <button class="btn secondary" id="finSortDateBtn">⇅ Sort dates: oldest → latest</button>
+      <button class="btn secondary" data-fin-add-row>+ Add row</button>
+      <button class="btn secondary" data-fin-add-group>+ Add section header</button>
+      <button class="btn secondary" data-fin-sort-date>⇅ Sort dates: oldest → latest</button>
     </div>
     <div class="fin-summary">
       <span>Total debit: <b>₱${fmtMoney(totalDebit)}</b></span>
@@ -1194,11 +1328,15 @@ function renderFinancialLedger(ledger, search){
     });
   });
 
-  $('#finAddRowBtn').addEventListener('click', () => addFinRow(ledger.id, false));
-  $('#finAddGroupBtn').addEventListener('click', () => addFinRow(ledger.id, true));
-  $('#finSortDateBtn').addEventListener('click', () => sortFinLedgerByDate(ledger.id));
-  $('#finPaidToggle').addEventListener('click', () => {
-    const current = $('#finPaidToggle').dataset.paid === 'true';
+  const addRowBtn = wrap.querySelector('[data-fin-add-row]');
+  const addGroupBtn = wrap.querySelector('[data-fin-add-group]');
+  const sortDateBtn = wrap.querySelector('[data-fin-sort-date]');
+  const paidToggleBtn = wrap.querySelector('[data-fin-paid-toggle]');
+  if (addRowBtn) addRowBtn.addEventListener('click', () => addFinRow(ledger.id, false));
+  if (addGroupBtn) addGroupBtn.addEventListener('click', () => addFinRow(ledger.id, true));
+  if (sortDateBtn) sortDateBtn.addEventListener('click', () => sortFinLedgerByDate(ledger.id));
+  if (paidToggleBtn) paidToggleBtn.addEventListener('click', () => {
+    const current = paidToggleBtn.dataset.paid === 'true';
     setLedgerPaid(ledger.id, !current);
   });
 }

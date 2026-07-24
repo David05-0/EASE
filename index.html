@@ -201,6 +201,14 @@
   }
   table.finledger tbody tr.blank-row td{height:22px;}
   table.finledger tbody tr:hover:not(.group-row){background:#FAFAF5;}
+  table.finledger tbody td.row-actions, table.finledger thead th:last-child{
+    width:30px;text-align:center;padding:4px;
+  }
+  table.finledger tbody td.row-actions .icon-btn{padding:2px 4px;font-size:13px;opacity:.4;}
+  table.finledger tbody tr:hover td.row-actions .icon-btn{opacity:1;}
+  table.finledger tbody td[contenteditable="true"]:focus{
+    outline:2px solid var(--ledger-red);outline-offset:-2px;background:#FBFCF9;
+  }
   .fin-add-group{
     font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-soft);
     background:none;border:1px dashed var(--rule);border-radius:4px;padding:2px 8px;cursor:pointer;
@@ -943,6 +951,27 @@ async function updateFinRow(ledgerId, rowId, patch){
   catch(err){ alert('Could not save that change: ' + err.message); }
 }
 
+async function addFinRow(ledgerId, isGroupRow){
+  const ledger = Store.all().find(l => l.id === ledgerId);
+  if (!ledger) return;
+  const newRow = {
+    id: uid(), data: {}, isGroupRow: !!isGroupRow,
+    group: isGroupRow ? 'New Section' : '',
+    date: '', checkNo: '', particulars: '', debit: '', credit: '', remarks: ''
+  };
+  const rows = [...ledger.rows, newRow];
+  try { await db.collection('ledgers').doc(ledgerId).update({ rows }); }
+  catch(err){ alert('Could not add row: ' + err.message); }
+}
+
+async function deleteFinRow(ledgerId, rowId){
+  const ledger = Store.all().find(l => l.id === ledgerId);
+  if (!ledger) return;
+  const rows = ledger.rows.filter(r => r.id !== rowId);
+  try { await db.collection('ledgers').doc(ledgerId).update({ rows }); }
+  catch(err){ alert('Could not delete row: ' + err.message); }
+}
+
 function renderFinancialLedger(ledger, search){
   const wrap = $('#finLedgerWrap');
   let rows = ledger.rows;
@@ -962,6 +991,7 @@ function renderFinancialLedger(ledger, search){
       balance = 0;
       return `<tr class="group-row" data-id="${r.id}">
         <td colspan="7" contenteditable="true" data-field="group">${r.group || ''}</td>
+        <td class="row-actions"><button class="icon-btn" data-del-row="${r.id}" title="Delete row">✕</button></td>
       </tr>`;
     }
     const debit = parseFloat(r.debit) || 0;
@@ -969,25 +999,30 @@ function renderFinancialLedger(ledger, search){
     balance += debit - credit;
     totalDebit += debit; totalCredit += credit;
     return `<tr data-id="${r.id}">
-      <td>${fmtLedgerDate(r.date)}</td>
-      <td>${r.checkNo || ''}</td>
-      <td>${r.particulars || ''}</td>
-      <td class="num">${fmtMoney(r.debit)}</td>
-      <td class="num">${fmtMoney(r.credit)}</td>
+      <td contenteditable="true" data-field="date">${r.date ? fmtLedgerDate(r.date) : ''}</td>
+      <td contenteditable="true" data-field="checkNo">${r.checkNo || ''}</td>
+      <td contenteditable="true" data-field="particulars">${r.particulars || ''}</td>
+      <td class="num" contenteditable="true" data-field="debit" data-raw="${r.debit||''}">${r.debit !== '' && r.debit != null ? fmtMoney(r.debit) : ''}</td>
+      <td class="num" contenteditable="true" data-field="credit" data-raw="${r.credit||''}">${r.credit !== '' && r.credit != null ? fmtMoney(r.credit) : ''}</td>
       <td class="num">${fmtMoney(balance)}</td>
-      <td>${r.remarks || ''}</td>
+      <td contenteditable="true" data-field="remarks">${r.remarks || ''}</td>
+      <td class="row-actions"><button class="icon-btn" data-del-row="${r.id}" title="Delete row">✕</button></td>
     </tr>`;
   }).join('');
 
   wrap.innerHTML = `
-    <div class="fin-hint">Double‑click a yellow section header to rename it. Balance runs per section and resets after each header.</div>
+    <div class="fin-hint">Click any cell to edit it directly — date, check no., particulars, debit, credit, remarks, and section headers all save automatically. Balance is calculated, not editable, and resets after each section header.</div>
     <div class="table-wrap"><table class="finledger">
       <thead><tr>
         <th>Date</th><th>Check No.</th><th>Particulars</th>
-        <th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th><th>Remarks</th>
+        <th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th><th>Remarks</th><th></th>
       </tr></thead>
-      <tbody>${bodyRows || `<tr><td colspan="7" style="text-align:center;color:var(--ink-soft);">No rows match.</td></tr>`}</tbody>
+      <tbody>${bodyRows || `<tr><td colspan="8" style="text-align:center;color:var(--ink-soft);">No rows match.</td></tr>`}</tbody>
     </table></div>
+    <div class="actions" style="margin-top:12px;">
+      <button class="btn secondary" id="finAddRowBtn">+ Add row</button>
+      <button class="btn secondary" id="finAddGroupBtn">+ Add section header</button>
+    </div>
     <div class="fin-summary">
       <span>Total debit: <b>₱${fmtMoney(totalDebit)}</b></span>
       <span>Total credit: <b>₱${fmtMoney(totalCredit)}</b></span>
@@ -996,14 +1031,34 @@ function renderFinancialLedger(ledger, search){
   `;
 
   wrap.querySelectorAll('td[contenteditable="true"]').forEach(td => {
+    td.addEventListener('focus', () => {
+      if (td.dataset.field === 'debit' || td.dataset.field === 'credit'){
+        td.textContent = td.dataset.raw || '';
+      }
+    });
     td.addEventListener('blur', () => {
       const tr = td.closest('tr');
-      updateFinRow(ledger.id, tr.dataset.id, { group: td.textContent.trim() });
+      const field = td.dataset.field;
+      let value = td.textContent.trim();
+      if (field === 'debit' || field === 'credit'){
+        const n = parseFloat(value.replace(/,/g,''));
+        value = isNaN(n) ? '' : n;
+      }
+      updateFinRow(ledger.id, tr.dataset.id, { [field]: value });
     });
     td.addEventListener('keydown', e => {
       if (e.key === 'Enter'){ e.preventDefault(); td.blur(); }
     });
   });
+
+  wrap.querySelectorAll('[data-del-row]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (confirm('Delete this row?')) deleteFinRow(ledger.id, btn.dataset.delRow);
+    });
+  });
+
+  $('#finAddRowBtn').addEventListener('click', () => addFinRow(ledger.id, false));
+  $('#finAddGroupBtn').addEventListener('click', () => addFinRow(ledger.id, true));
 }
 
 ['#searchInput'].forEach(sel => $(sel).addEventListener('input', renderMasterlist));

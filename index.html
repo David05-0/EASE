@@ -107,15 +107,6 @@
   .mapping .note{color:var(--ink-soft);font-size:13px;margin-bottom:16px;}
   .field-row{display:grid;grid-template-columns:180px 1fr;gap:14px;align-items:center;margin-bottom:12px;}
   .field-row label{font-size:13px;font-weight:600;color:var(--ink-soft);}
-
-  .sheet-block{border:1px solid var(--rule);border-radius:6px;padding:16px 18px;margin-bottom:14px;background:#F9F9F4;}
-  .sheet-block .sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
-  .sheet-block .sheet-head .tag{
-    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);
-    background:#F0EEE3;padding:3px 9px;border-radius:20px;
-  }
-  .sheet-block.skip{opacity:.5;}
-  .sheet-block .skip-toggle{font-size:12px;color:var(--ink-soft);cursor:pointer;user-select:none;}
   select, input[type=text]{
     font-family:'Inter',sans-serif;font-size:13.5px;padding:8px 10px;
     border:1px solid var(--rule);border-radius:5px;background:#fff;color:var(--ink);width:100%;
@@ -178,6 +169,44 @@
   .status-tag.released{color:var(--released);border-color:var(--released);background:var(--released-bg);}
   .status-tag.pending{color:var(--pending);border-color:var(--pending);background:var(--pending-bg);}
   .table-wrap{overflow:auto;max-height:560px;border:1px solid var(--rule);border-radius:6px;}
+
+  /* ---- Financial ledger (Debit/Credit/Balance) ---- */
+  .style-toggle{display:flex;gap:8px;margin-bottom:14px;}
+  .style-toggle button{
+    font-family:'Inter',sans-serif;font-weight:600;font-size:12.5px;
+    padding:8px 14px;border-radius:20px;border:1.5px solid var(--rule);
+    background:var(--paper-card);color:var(--ink-soft);cursor:pointer;
+  }
+  .style-toggle button.active{border-color:var(--ink);color:var(--ink);background:#F0EEE3;}
+  .fin-hint{color:var(--ink-soft);font-size:12px;margin-bottom:10px;}
+  table.finledger{
+    width:100%;border-collapse:collapse;font-size:13px;background:#fff;
+    font-family:'Inter',sans-serif;
+  }
+  table.finledger th, table.finledger td{
+    border:1px solid #444;padding:6px 10px;
+  }
+  table.finledger thead th{
+    font-family:'Fraunces',serif;font-style:italic;font-weight:700;font-size:13px;
+    text-align:left;background:#fff;text-transform:uppercase;letter-spacing:.02em;
+  }
+  table.finledger thead th.num{text-align:right;}
+  table.finledger tbody td{vertical-align:top;}
+  table.finledger tbody td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  table.finledger tbody tr.group-row td{
+    background:#FFF200;font-weight:700;text-align:center;cursor:text;
+  }
+  table.finledger tbody tr.group-row td[contenteditable="true"]:focus{
+    outline:2px solid var(--ledger-red);outline-offset:-2px;background:#fff9b0;
+  }
+  table.finledger tbody tr.blank-row td{height:22px;}
+  table.finledger tbody tr:hover:not(.group-row){background:#FAFAF5;}
+  .fin-add-group{
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-soft);
+    background:none;border:1px dashed var(--rule);border-radius:4px;padding:2px 8px;cursor:pointer;
+  }
+  .fin-summary{display:flex;gap:18px;margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--ink-soft);}
+  .fin-summary b{color:var(--ink);}
   .result-count{color:var(--ink-soft);font-size:12.5px;margin-bottom:8px;font-family:'IBM Plex Mono',monospace;}
   footer.note{margin-top:26px;color:var(--ink-soft);font-size:12px;line-height:1.6;border-top:1px solid var(--rule);padding-top:14px;}
   code{background:#F0EEE3;padding:1px 5px;border-radius:3px;font-family:'IBM Plex Mono',monospace;}
@@ -266,18 +295,78 @@
     <div class="dropzone" id="dropzone">
       <div class="glyph">📄</div>
       <div class="main">Drop an Excel file here, or click to browse</div>
-      <div class="sub">.xlsx / .xls / .csv — every sheet in the file becomes its own ledger</div>
+      <div class="sub">.xlsx / .xls / .csv — each import becomes its own ledger entry</div>
       <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
     </div>
 
     <div class="card mapping" id="mappingCard" style="display:none;">
       <h3 id="mapTitle">Confirm columns</h3>
-      <div class="note">Every sheet in this workbook will become its own ledger. Confirm the Date Released and identifier column for each — the system has already guessed them.</div>
+      <div class="note">The system found these columns. Confirm which one marks a case as released, and which one identifies it.</div>
 
-      <div id="sheetBlocks"></div>
+      <div class="field-row" id="sheetPickerRow" style="display:none;">
+        <label>Sheet</label>
+        <select id="sheetSelect"></select>
+      </div>
+
+      <div class="field-row">
+        <label>Ledger style</label>
+        <div class="style-toggle">
+          <button type="button" id="styleStatusBtn" class="active">Case Status</button>
+          <button type="button" id="styleFinancialBtn">Financial Ledger</button>
+        </div>
+      </div>
+
+      <div id="statusFields">
+        <div class="field-row">
+          <label>Date Released column</label>
+          <select id="releaseColSelect"></select>
+        </div>
+        <div class="field-row">
+          <label>Identifier column</label>
+          <select id="nameColSelect"></select>
+        </div>
+      </div>
+
+      <div id="financialFields" style="display:none;">
+        <div class="field-row">
+          <label>Date column</label>
+          <select id="dateColSelect"></select>
+        </div>
+        <div class="field-row">
+          <label>Check No. column</label>
+          <select id="checkColSelect"></select>
+        </div>
+        <div class="field-row">
+          <label>Particulars column</label>
+          <select id="particularsColSelect"></select>
+        </div>
+        <div class="field-row">
+          <label>Debit column</label>
+          <select id="debitColSelect"></select>
+        </div>
+        <div class="field-row">
+          <label>Credit column</label>
+          <select id="creditColSelect"></select>
+        </div>
+        <div class="field-row">
+          <label>Remarks column</label>
+          <select id="remarksColSelect"></select>
+        </div>
+        <div class="field-row">
+          <label>Group / Section column</label>
+          <select id="groupColSelect"></select>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <label>Ledger name</label>
+        <input type="text" id="ledgerNameInput" placeholder="e.g. July 2026 OEC Applications">
+      </div>
+
+      <div class="preview-table"><table class="master" id="previewTable"></table></div>
 
       <div class="actions">
-        <button class="btn" id="createLedgerBtn">Create ledgers</button>
+        <button class="btn" id="createLedgerBtn">Create ledger</button>
         <button class="btn secondary" id="cancelImportBtn">Cancel</button>
       </div>
     </div>
@@ -305,7 +394,8 @@
       <input type="file" id="jsonFileInput" accept=".json" style="display:none;">
     </div>
     <div class="result-count" id="resultCount"></div>
-    <div class="table-wrap"><table class="master" id="masterTable"></table></div>
+    <div class="table-wrap" id="genericTableWrap"><table class="master" id="masterTable"></table></div>
+    <div id="finLedgerWrap" style="display:none;"></div>
   </section>
 
   <footer class="note">
@@ -371,8 +461,9 @@ const Store = {
 /* ============================================================
    STATE
    ============================================================ */
-let pendingImport = null; // {fileName, sheets:[{sheetName, rows, columns, releaseCol, nameCol, ledgerName}]}
+let pendingImport = null; // {columns, sheetRows, workbook, sheetNames}
 let sort = { col: null, dir: 1 };
+let importStyle = 'status'; // 'status' | 'financial'
 
 /* ============================================================
    HELPERS
@@ -388,6 +479,38 @@ function guessNameCol(cols){
   return cols.find(c => /^name$/i.test(c)) ||
          cols.find(c => /name/i.test(c) && !/file ?name/i.test(c)) ||
          cols[0];
+}
+function guessDateCol(cols){
+  return cols.find(c => /^date$/i.test(c)) || cols.find(c => /date/i.test(c)) || cols[0];
+}
+function guessCheckCol(cols){
+  return cols.find(c => /check/i.test(c)) || cols.find(c => /\bo\.?r\.?\s*no/i.test(c)) || cols[0];
+}
+function guessParticularsCol(cols){
+  return cols.find(c => /particular/i.test(c)) || cols.find(c => /description/i.test(c)) || cols[0];
+}
+function guessDebitCol(cols){
+  return cols.find(c => /debit/i.test(c)) || cols[0];
+}
+function guessCreditCol(cols){
+  return cols.find(c => /credit/i.test(c)) || cols[0];
+}
+function guessRemarksCol(cols){
+  return cols.find(c => /remark/i.test(c)) || '__none__';
+}
+function guessGroupCol(cols){
+  return cols.find(c => /group|section|year ?level|category/i.test(c)) || '__none__';
+}
+function fmtMoney(v){
+  const n = parseFloat(v);
+  if (isNaN(n) || v === '' || v === null || v === undefined) return '';
+  return n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtLedgerDate(v){
+  if (v === '' || v === null || v === undefined) return '';
+  const d = v instanceof Date ? v : new Date(v);
+  if (isNaN(d.getTime())) return String(v);
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}).replace(',', '.');
 }
 function isReleased(val){
   if (val === null || val === undefined) return false;
@@ -413,7 +536,7 @@ $$('nav.tabs button').forEach(btn => {
 });
 
 /* ============================================================
-   IMPORT FLOW — every sheet in the workbook becomes its own ledger
+   IMPORT FLOW
    ============================================================ */
 const dropzone = $('#dropzone');
 const fileInput = $('#fileInput');
@@ -428,81 +551,85 @@ function handleFile(file){
   reader.onload = e => {
     const data = new Uint8Array(e.target.result);
     const workbook = XLSX.read(data, {type:'array', cellDates:true});
-
-    // Build one pending sheet entry per non-empty sheet
-    pendingImport = { fileName: file.name, sheets: [] };
-    workbook.SheetNames.forEach(sheetName => {
-      const sheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
-      if (!rows.length) return; // skip genuinely empty sheets
-      const columns = Object.keys(rows[0]);
-      pendingImport.sheets.push({
-        sheetName,
-        rows,
-        columns,
-        releaseCol: guessReleaseCol(columns),
-        nameCol: guessNameCol(columns),
-        ledgerName: workbook.SheetNames.length > 1
-          ? sheetName
-          : file.name.replace(/\.(xlsx|xls|csv)$/i,'')
-      });
+    pendingImport = { workbook, fileName: file.name };
+    $('#styleStatusBtn').click();
+    const sheetPickerRow = $('#sheetPickerRow');
+    const sheetSelect = $('#sheetSelect');
+    sheetSelect.innerHTML = '';
+    workbook.SheetNames.forEach(n => {
+      const o = document.createElement('option'); o.value = n; o.textContent = n; sheetSelect.appendChild(o);
     });
-
-    if (!pendingImport.sheets.length){
-      alert('No sheets with data rows were found in that file.');
-      pendingImport = null;
-      return;
-    }
-
-    renderSheetBlocks();
+    sheetPickerRow.style.display = workbook.SheetNames.length > 1 ? 'grid' : 'none';
+    sheetSelect.onchange = () => loadSheet(sheetSelect.value);
+    loadSheet(workbook.SheetNames[0]);
+    $('#ledgerNameInput').value = file.name.replace(/\.(xlsx|xls|csv)$/i,'');
     $('#mappingCard').style.display = 'block';
     $('#mappingCard').scrollIntoView({behavior:'smooth', block:'nearest'});
   };
   reader.readAsArrayBuffer(file);
 }
 
-function renderSheetBlocks(){
-  const wrap = $('#sheetBlocks');
-  wrap.innerHTML = pendingImport.sheets.map((s, i) => `
-    <div class="sheet-block" data-idx="${i}">
-      <div class="sheet-head">
-        <span class="tag">${s.rows.length} rows</span>
-        <label class="skip-toggle"><input type="checkbox" class="skip-check" checked> Import this sheet</label>
-      </div>
-      <div class="field-row">
-        <label>Ledger name</label>
-        <input type="text" class="ledger-name-input" value="${s.ledgerName}">
-      </div>
-      <div class="field-row">
-        <label>Date Released column</label>
-        <select class="release-col-select">
-          ${s.columns.map(c => `<option value="${c}" ${c===s.releaseCol?'selected':''}>${c}</option>`).join('')}
-        </select>
-      </div>
-      <div class="field-row">
-        <label>Identifier column</label>
-        <select class="name-col-select">
-          ${s.columns.map(c => `<option value="${c}" ${c===s.nameCol?'selected':''}>${c}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-  `).join('');
+function loadSheet(sheetName){
+  const sheet = pendingImport.workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+  if (!rows.length){
+    alert('That sheet has no data rows.');
+    return;
+  }
+  const columns = Object.keys(rows[0]);
+  pendingImport.sheetName = sheetName;
+  pendingImport.rows = rows;
+  pendingImport.columns = columns;
 
-  wrap.querySelectorAll('.sheet-block').forEach(block => {
-    const idx = Number(block.dataset.idx);
-    block.querySelector('.skip-check').addEventListener('change', e => {
-      block.classList.toggle('skip', !e.target.checked);
-    });
-    block.querySelector('.ledger-name-input').addEventListener('input', e => {
-      pendingImport.sheets[idx].ledgerName = e.target.value;
-    });
-    block.querySelector('.release-col-select').addEventListener('change', e => {
-      pendingImport.sheets[idx].releaseCol = e.target.value;
-    });
-    block.querySelector('.name-col-select').addEventListener('change', e => {
-      pendingImport.sheets[idx].nameCol = e.target.value;
-    });
+  const releaseSel = $('#releaseColSelect');
+  const nameSel = $('#nameColSelect');
+  releaseSel.innerHTML = ''; nameSel.innerHTML = '';
+  columns.forEach(c => {
+    releaseSel.appendChild(new Option(c, c));
+    nameSel.appendChild(new Option(c, c));
   });
+  releaseSel.value = guessReleaseCol(columns);
+  nameSel.value = guessNameCol(columns);
+
+  const dateSel = $('#dateColSelect'), checkSel = $('#checkColSelect'),
+        partSel = $('#particularsColSelect'), debitSel = $('#debitColSelect'),
+        creditSel = $('#creditColSelect'), remarksSel = $('#remarksColSelect'),
+        groupSel = $('#groupColSelect');
+  [dateSel, checkSel, partSel, debitSel, creditSel].forEach(sel => sel.innerHTML = '');
+  [remarksSel, groupSel].forEach(sel => sel.innerHTML = '<option value="__none__">— None —</option>');
+  columns.forEach(c => {
+    [dateSel, checkSel, partSel, debitSel, creditSel, remarksSel, groupSel].forEach(sel => sel.appendChild(new Option(c, c)));
+  });
+  dateSel.value = guessDateCol(columns);
+  checkSel.value = guessCheckCol(columns);
+  partSel.value = guessParticularsCol(columns);
+  debitSel.value = guessDebitCol(columns);
+  creditSel.value = guessCreditCol(columns);
+  remarksSel.value = guessRemarksCol(columns);
+  groupSel.value = guessGroupCol(columns);
+
+  renderPreview(columns, rows.slice(0,5));
+}
+
+$('#styleStatusBtn').addEventListener('click', () => {
+  importStyle = 'status';
+  $('#styleStatusBtn').classList.add('active');
+  $('#styleFinancialBtn').classList.remove('active');
+  $('#statusFields').style.display = 'block';
+  $('#financialFields').style.display = 'none';
+});
+$('#styleFinancialBtn').addEventListener('click', () => {
+  importStyle = 'financial';
+  $('#styleFinancialBtn').classList.add('active');
+  $('#styleStatusBtn').classList.remove('active');
+  $('#financialFields').style.display = 'block';
+  $('#statusFields').style.display = 'none';
+});
+
+function renderPreview(columns, rows){
+  const table = $('#previewTable');
+  table.innerHTML = `<thead><tr>${columns.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r => `<tr>${columns.map(c=>`<td>${r[c] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody>`;
 }
 
 $('#cancelImportBtn').addEventListener('click', () => {
@@ -513,43 +640,75 @@ $('#cancelImportBtn').addEventListener('click', () => {
 
 $('#createLedgerBtn').addEventListener('click', async () => {
   if (!pendingImport) return;
-  const blocks = $$('#sheetBlocks .sheet-block');
-  const toImport = pendingImport.sheets.filter((s, i) => blocks[i].querySelector('.skip-check').checked);
+  const name = $('#ledgerNameInput').value.trim() || pendingImport.fileName;
 
-  if (!toImport.length){
-    alert('Select at least one sheet to import.');
-    return;
+  let ledger;
+  if (importStyle === 'financial'){
+    const dateCol = $('#dateColSelect').value;
+    const checkCol = $('#checkColSelect').value;
+    const particularsCol = $('#particularsColSelect').value;
+    const debitCol = $('#debitColSelect').value;
+    const creditCol = $('#creditColSelect').value;
+    const remarksCol = $('#remarksColSelect').value;
+    const groupCol = $('#groupColSelect').value;
+
+    ledger = {
+      id: uid(),
+      name,
+      style: 'financial',
+      fileName: pendingImport.fileName,
+      sheetName: pendingImport.sheetName,
+      importedAt: new Date().toISOString(),
+      dateCol, checkCol, particularsCol, debitCol, creditCol, remarksCol, groupCol,
+      columns: pendingImport.columns,
+      rows: pendingImport.rows.map(r => {
+        const groupVal = groupCol !== '__none__' ? String(r[groupCol] ?? '').trim() : '';
+        return {
+          id: uid(),
+          data: r,
+          isGroupRow: !!groupVal,
+          group: groupVal,
+          date: r[dateCol] instanceof Date ? r[dateCol].toISOString() : (r[dateCol] ?? ''),
+          checkNo: r[checkCol] ?? '',
+          particulars: r[particularsCol] ?? '',
+          debit: r[debitCol] ?? '',
+          credit: r[creditCol] ?? '',
+          remarks: remarksCol !== '__none__' ? (r[remarksCol] ?? '') : ''
+        };
+      })
+    };
+  } else {
+    const releaseCol = $('#releaseColSelect').value;
+    const nameCol = $('#nameColSelect').value;
+    ledger = {
+      id: uid(),
+      name,
+      style: 'status',
+      fileName: pendingImport.fileName,
+      sheetName: pendingImport.sheetName,
+      importedAt: new Date().toISOString(),
+      releaseCol, nameCol,
+      columns: pendingImport.columns,
+      rows: pendingImport.rows.map(r => ({
+        id: uid(),
+        data: r,
+        released: isReleased(r[releaseCol])
+      }))
+    };
   }
 
   const btn = $('#createLedgerBtn');
-  btn.disabled = true; btn.textContent = `Saving ${toImport.length} ledger(s)…`;
+  btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    for (const s of toImport){
-      const ledger = {
-        id: uid(),
-        name: s.ledgerName.trim() || s.sheetName,
-        fileName: pendingImport.fileName,
-        sheetName: s.sheetName,
-        importedAt: new Date().toISOString(),
-        releaseCol: s.releaseCol,
-        nameCol: s.nameCol,
-        columns: s.columns,
-        rows: s.rows.map(r => ({
-          id: uid(),
-          data: r,
-          released: isReleased(r[s.releaseCol])
-        }))
-      };
-      await Store.addLedger(ledger);
-    }
+    await Store.addLedger(ledger);
     pendingImport = null;
     $('#mappingCard').style.display = 'none';
     fileInput.value = '';
     document.querySelector('nav.tabs button[data-tab="ledgers"]').click();
   } catch(err){
-    alert('Could not save one or more ledgers to Firestore: ' + err.message);
+    alert('Could not save this ledger to Firestore: ' + err.message);
   } finally {
-    btn.disabled = false; btn.textContent = 'Create ledgers';
+    btn.disabled = false; btn.textContent = 'Create ledger';
   }
 });
 
@@ -564,6 +723,22 @@ function renderLedgers(){
     return;
   }
   wrap.innerHTML = ledgers.map(l => {
+    if (l.style === 'financial'){
+      const totalDebit = l.rows.reduce((s,r)=> s + (parseFloat(r.debit)||0), 0);
+      const totalCredit = l.rows.reduce((s,r)=> s + (parseFloat(r.credit)||0), 0);
+      return `<div class="ledger-item">
+        <div>
+          <div class="name">${l.name}</div>
+          <div class="meta">${l.fileName} · ${l.rows.length} rows · imported ${fmtDate(l.importedAt)}</div>
+        </div>
+        <div class="counts">
+          <span class="pill pending">Financial ledger</span>
+          <span class="pill released">₱${fmtMoney(totalDebit)} debit</span>
+          <span class="pill released">₱${fmtMoney(totalCredit)} credit</span>
+          <button class="icon-btn" title="Delete ledger" data-del="${l.id}">✕</button>
+        </div>
+      </div>`;
+    }
     const released = l.rows.filter(r=>r.released).length;
     const pending = l.rows.length - released;
     return `<div class="ledger-item">
@@ -595,7 +770,8 @@ function allRecords(){
   const out = [];
   Store.all().forEach(l => {
     l.rows.forEach(r => out.push({
-      ledgerId: l.id, ledgerName: l.name, releaseCol: l.releaseCol, nameCol: l.nameCol,
+      ledgerId: l.id, ledgerName: l.name, ledgerStyle: l.style || 'status',
+      releaseCol: l.releaseCol, nameCol: l.nameCol,
       ...r
     }));
   });
@@ -616,7 +792,19 @@ function renderMasterlist(){
   const status = $('#statusFilter').value;
   const ledgerId = $('#ledgerFilter').value;
 
-  let records = allRecords();
+  const selectedLedger = ledgerId !== 'all' ? Store.all().find(l => l.id === ledgerId) : null;
+  if (selectedLedger && selectedLedger.style === 'financial'){
+    $('#genericTableWrap').style.display = 'none';
+    $('#finLedgerWrap').style.display = 'block';
+    renderFinancialLedger(selectedLedger, search);
+    $('#resultCount').textContent = `${selectedLedger.rows.length} rows in this ledger`;
+    return;
+  }
+  $('#genericTableWrap').style.display = 'block';
+  $('#finLedgerWrap').style.display = 'none';
+
+  let records = allRecords().filter(r => r.ledgerStyle !== 'financial');
+  const financialHiddenCount = allRecords().length - records.length;
   if (ledgerId !== 'all') records = records.filter(r => r.ledgerId === ledgerId);
   if (status !== 'all') records = records.filter(r => status === 'released' ? r.released : !r.released);
   if (search){
@@ -641,7 +829,8 @@ function renderMasterlist(){
     });
   }
 
-  $('#resultCount').textContent = `${records.length} of ${allRecords().length} records`;
+  $('#resultCount').textContent = `${records.length} of ${allRecords().length - financialHiddenCount} records` +
+    (financialHiddenCount ? ` · select a financial ledger above to view its Debit/Credit/Balance sheet` : '');
 
   const table = $('#masterTable');
   const arrow = col => sort.col === col ? `<span class="arrow">${sort.dir===1?'▲':'▼'}</span>` : '';
@@ -661,6 +850,78 @@ function renderMasterlist(){
       const col = th.dataset.sort;
       if (sort.col === col) sort.dir *= -1; else { sort.col = col; sort.dir = 1; }
       renderMasterlist();
+    });
+  });
+}
+
+/* ---- Financial ledger (Debit/Credit/Balance) rendering ---- */
+async function updateFinRow(ledgerId, rowId, patch){
+  const ledger = Store.all().find(l => l.id === ledgerId);
+  if (!ledger) return;
+  const rows = ledger.rows.map(r => r.id === rowId ? { ...r, ...patch } : r);
+  try { await db.collection('ledgers').doc(ledgerId).update({ rows }); }
+  catch(err){ alert('Could not save that change: ' + err.message); }
+}
+
+function renderFinancialLedger(ledger, search){
+  const wrap = $('#finLedgerWrap');
+  let rows = ledger.rows;
+  if (search){
+    rows = rows.filter(r =>
+      String(r.particulars||'').toLowerCase().includes(search) ||
+      String(r.checkNo||'').toLowerCase().includes(search) ||
+      String(r.remarks||'').toLowerCase().includes(search) ||
+      String(r.group||'').toLowerCase().includes(search)
+    );
+  }
+
+  let balance = 0;
+  let totalDebit = 0, totalCredit = 0;
+  const bodyRows = rows.map(r => {
+    if (r.isGroupRow){
+      balance = 0;
+      return `<tr class="group-row" data-id="${r.id}">
+        <td colspan="7" contenteditable="true" data-field="group">${r.group || ''}</td>
+      </tr>`;
+    }
+    const debit = parseFloat(r.debit) || 0;
+    const credit = parseFloat(r.credit) || 0;
+    balance += debit - credit;
+    totalDebit += debit; totalCredit += credit;
+    return `<tr data-id="${r.id}">
+      <td>${fmtLedgerDate(r.date)}</td>
+      <td>${r.checkNo || ''}</td>
+      <td>${r.particulars || ''}</td>
+      <td class="num">${fmtMoney(r.debit)}</td>
+      <td class="num">${fmtMoney(r.credit)}</td>
+      <td class="num">${fmtMoney(balance)}</td>
+      <td>${r.remarks || ''}</td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <div class="fin-hint">Double‑click a yellow section header to rename it. Balance runs per section and resets after each header.</div>
+    <div class="table-wrap"><table class="finledger">
+      <thead><tr>
+        <th>Date</th><th>Check No.</th><th>Particulars</th>
+        <th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th><th>Remarks</th>
+      </tr></thead>
+      <tbody>${bodyRows || `<tr><td colspan="7" style="text-align:center;color:var(--ink-soft);">No rows match.</td></tr>`}</tbody>
+    </table></div>
+    <div class="fin-summary">
+      <span>Total debit: <b>₱${fmtMoney(totalDebit)}</b></span>
+      <span>Total credit: <b>₱${fmtMoney(totalCredit)}</b></span>
+      <span>Ending balance: <b>₱${fmtMoney(balance)}</b></span>
+    </div>
+  `;
+
+  wrap.querySelectorAll('td[contenteditable="true"]').forEach(td => {
+    td.addEventListener('blur', () => {
+      const tr = td.closest('tr');
+      updateFinRow(ledger.id, tr.dataset.id, { group: td.textContent.trim() });
+    });
+    td.addEventListener('keydown', e => {
+      if (e.key === 'Enter'){ e.preventDefault(); td.blur(); }
     });
   });
 }
@@ -722,10 +983,11 @@ $('#jsonFileInput').addEventListener('change', e => {
    ============================================================ */
 function updateStamps(){
   const records = allRecords();
-  const released = records.filter(r=>r.released).length;
-  const pending = records.length - released;
+  const statusRecords = records.filter(r => r.ledgerStyle !== 'financial');
+  const released = statusRecords.filter(r=>r.released).length;
+  const pending = statusRecords.length - released;
   $('#stampRow').innerHTML = `
-    <div class="stamp"><span class="num">${records.length}</span><span class="lbl">Total</span></div>
+    <div class="stamp"><span class="num">${statusRecords.length}</span><span class="lbl">Total</span></div>
     <div class="stamp released"><span class="num">${released}</span><span class="lbl">Released</span></div>
     <div class="stamp pending"><span class="num">${pending}</span><span class="lbl">Non‑Released</span></div>
   `;

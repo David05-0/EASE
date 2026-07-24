@@ -374,6 +374,9 @@
 
   <!-- LEDGERS -->
   <section class="panel" id="panel-ledgers">
+    <div class="actions" style="margin-bottom:14px;">
+      <button class="btn danger" id="deleteAllLedgersBtn">Delete all ledgers</button>
+    </div>
     <div class="card" id="ledgerList"></div>
   </section>
 
@@ -454,6 +457,11 @@ const Store = {
   },
   async removeLedger(id){
     await db.collection('ledgers').doc(id).delete();
+  },
+  async removeAllLedgers(){
+    const batch = db.batch();
+    this.ledgers.forEach(l => batch.delete(db.collection('ledgers').doc(l.id)));
+    await batch.commit();
   },
   all(){ return this.ledgers; }
 };
@@ -762,6 +770,23 @@ function renderLedgers(){
     });
   });
 }
+
+$('#deleteAllLedgersBtn').addEventListener('click', async () => {
+  const count = Store.all().length;
+  if (!count){ alert('There are no ledgers to delete.'); return; }
+  if (!confirm(`This will permanently delete all ${count} ledger(s) and every row in the masterlist, for every signed-in user. This cannot be undone.`)) return;
+  const typed = prompt('Type DELETE to confirm.');
+  if (typed !== 'DELETE') return;
+  const btn = $('#deleteAllLedgersBtn');
+  btn.disabled = true; btn.textContent = 'Deleting…';
+  try {
+    await Store.removeAllLedgers();
+  } catch(err){
+    alert('Could not delete all ledgers: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Delete all ledgers';
+  }
+});
 
 /* ============================================================
    MASTERLIST PANEL

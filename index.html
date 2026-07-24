@@ -1042,6 +1042,46 @@ async function deleteFinRow(ledgerId, rowId){
   catch(err){ alert('Could not delete row: ' + err.message); }
 }
 
+function parseDateForSort(v){
+  if (v === '' || v === null || v === undefined) return null;
+  const d = v instanceof Date ? v : new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+async function sortFinLedgerByDate(ledgerId){
+  const ledger = Store.all().find(l => l.id === ledgerId);
+  if (!ledger) return;
+  // Sort transaction rows oldest -> latest within each section, keeping section headers in place.
+  const sections = [];
+  let current = { header: null, items: [] };
+  ledger.rows.forEach(r => {
+    if (r.isGroupRow){
+      sections.push(current);
+      current = { header: r, items: [] };
+    } else {
+      current.items.push(r);
+    }
+  });
+  sections.push(current);
+
+  const sortedRows = [];
+  sections.forEach(sec => {
+    if (sec.header) sortedRows.push(sec.header);
+    const items = [...sec.items].sort((a, b) => {
+      const da = parseDateForSort(a.date);
+      const db = parseDateForSort(b.date);
+      if (da && db) return da - db;
+      if (da) return -1;
+      if (db) return 1;
+      return 0;
+    });
+    sortedRows.push(...items);
+  });
+
+  try { await db.collection('ledgers').doc(ledgerId).update({ rows: sortedRows }); }
+  catch(err){ alert('Could not sort by date: ' + err.message); }
+}
+
 function renderFinancialLedger(ledger, search){
   const wrap = $('#finLedgerWrap');
   let rows = ledger.rows;
@@ -1081,7 +1121,7 @@ function renderFinancialLedger(ledger, search){
   }).join('');
 
   wrap.innerHTML = `
-    <div class="fin-hint">Click any cell to edit it directly — date, check no., particulars, debit, credit, remarks, and section headers all save automatically. Balance is calculated, not editable, and resets after each section header.</div>
+    <div class="fin-hint">Click any cell to edit it directly — date, check no., particulars, debit, credit, remarks, and section headers all save automatically. Balance is calculated, not editable, and resets after each section header. Use "Sort dates" to reorder rows oldest → latest within each section.</div>
     <div class="table-wrap"><table class="finledger">
       <thead><tr>
         <th>Date</th><th>Check No.</th><th>Particulars</th>
@@ -1092,6 +1132,7 @@ function renderFinancialLedger(ledger, search){
     <div class="actions" style="margin-top:12px;">
       <button class="btn secondary" id="finAddRowBtn">+ Add row</button>
       <button class="btn secondary" id="finAddGroupBtn">+ Add section header</button>
+      <button class="btn secondary" id="finSortDateBtn">⇅ Sort dates: oldest → latest</button>
     </div>
     <div class="fin-summary">
       <span>Total debit: <b>₱${fmtMoney(totalDebit)}</b></span>
@@ -1129,6 +1170,7 @@ function renderFinancialLedger(ledger, search){
 
   $('#finAddRowBtn').addEventListener('click', () => addFinRow(ledger.id, false));
   $('#finAddGroupBtn').addEventListener('click', () => addFinRow(ledger.id, true));
+  $('#finSortDateBtn').addEventListener('click', () => sortFinLedgerByDate(ledger.id));
 }
 
 ['#searchInput'].forEach(sel => $(sel).addEventListener('input', renderMasterlist));

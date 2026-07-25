@@ -270,6 +270,12 @@
   #signOutBtn{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 12px;}
   .header-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
   .user-line{font-size:11.5px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
+  .data-error-banner{
+    background:var(--pending-bg);border:1px solid var(--pending);color:var(--pending);
+    border-radius:6px;padding:14px 16px;font-size:13px;line-height:1.6;margin-bottom:18px;
+  }
+  .data-error-banner strong{display:block;margin-bottom:4px;font-size:14px;}
+  .data-error-banner code{background:rgba(255,255,255,.5);}
 </style>
 </head>
 <body>
@@ -304,6 +310,8 @@
 </div>
 
 <div class="app" id="mainApp" style="display:none;">
+
+  <div class="data-error-banner" id="dataErrorBanner" style="display:none;"></div>
 
   <header class="top">
     <div>
@@ -471,10 +479,12 @@ const Store = {
     this._unsub = db.collection('ledgers').orderBy('importedAt','desc')
       .onSnapshot(snap => {
         this.ledgers = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+        const banner = $('#dataErrorBanner');
+        if (banner) banner.style.display = 'none';
         onChange();
       }, err => {
         console.error(err);
-        alert('Could not load ledgers from Firestore: ' + err.message);
+        showDataError(err);
       });
   },
   async addLedger(ledger){
@@ -562,6 +572,22 @@ function isReleased(val){
 }
 function fmtDate(d){
   return new Date(d).toLocaleDateString('en-PH', {year:'numeric', month:'short', day:'numeric'});
+}
+
+function showDataError(err){
+  const banner = $('#dataErrorBanner');
+  if (!banner) return;
+  if (err && (err.code === 'permission-denied' || /insufficient permissions/i.test(err.message || ''))){
+    banner.innerHTML = `<strong>Could not load ledgers — Firestore is blocking access.</strong>
+      This means the Firestore Security Rules for this project (not this app's code) are denying reads/writes,
+      most often because a "test mode" rule expired. In the
+      <a href="https://console.firebase.google.com/" target="_blank" rel="noopener">Firebase Console</a> →
+      your project → <strong>Firestore Database → Rules</strong>, make sure signed-in users are allowed access, e.g.:
+      <br><code>allow read, write: if request.auth != null;</code> for the <code>/ledgers/{ledgerId}</code> path, then Publish and reload.`;
+  } else {
+    banner.innerHTML = `<strong>Could not load ledgers from Firestore.</strong> ${err && err.message ? err.message : 'Unknown error.'}`;
+  }
+  banner.style.display = 'block';
 }
 
 /* ============================================================
@@ -1302,10 +1328,15 @@ function updateStamps(){
   const released = statusRecords.filter(r=>r.released).length + finPaid;
   const pending = (statusRecords.length - statusRecords.filter(r=>r.released).length) + finUnpaid;
 
+  const withFolder = Store.all().filter(l => l.folder === 'with-folder').length;
+  const noFolder = Store.all().filter(l => l.folder === 'no-folder').length;
+
   $('#stampRow').innerHTML = `
     <div class="stamp"><span class="num">${total}</span><span class="lbl">Total</span></div>
     <div class="stamp released"><span class="num">${released}</span><span class="lbl">Released</span></div>
     <div class="stamp pending"><span class="num">${pending}</span><span class="lbl">Non‑Released</span></div>
+    <div class="stamp released"><span class="num">${withFolder}</span><span class="lbl">With Folder</span></div>
+    <div class="stamp pending"><span class="num">${noFolder}</span><span class="lbl">No Folder</span></div>
   `;
   $('#ledgerCountTab').textContent = Store.all().length ? `(${Store.all().length})` : '';
 }

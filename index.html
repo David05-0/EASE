@@ -481,6 +481,22 @@
     <div class="table-wrap" id="genericTableWrap"><table class="master" id="masterTable"></table></div>
     <div id="finLedgerWrap" style="display:none;"></div>
     <div id="customLedgerWrap" style="display:none;"></div>
+
+    <div class="card mapping" id="convertToFinCard" style="display:none;padding:20px 22px;margin-top:18px;">
+      <h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0 0 4px;font-weight:600;">Convert to Financial ledger</h3>
+      <div class="note">Map this ledger's columns to the Financial layout (Date, Check No., Particulars, Debit, Credit, Balance, Remarks). Existing rows are reshaped into this layout — review the guesses below before confirming.</div>
+      <div class="field-row"><label>Date column</label><select id="convDateCol"></select></div>
+      <div class="field-row"><label>Check No. column</label><select id="convCheckCol"></select></div>
+      <div class="field-row"><label>Particulars column</label><select id="convParticularsCol"></select></div>
+      <div class="field-row"><label>Debit column</label><select id="convDebitCol"></select></div>
+      <div class="field-row"><label>Credit column</label><select id="convCreditCol"></select></div>
+      <div class="field-row"><label>Remarks column</label><select id="convRemarksCol"></select></div>
+      <div class="field-row"><label>Section/Group column</label><select id="convGroupCol"></select></div>
+      <div class="actions">
+        <button class="btn" id="confirmConvertBtn">Convert ledger</button>
+        <button class="btn secondary" id="cancelConvertBtn">Cancel</button>
+      </div>
+    </div>
   </section>
 
   <footer class="note">
@@ -1042,6 +1058,7 @@ function renderLedgers(){
   const ledgerId = $('#ledgerFilter').value;
 
   const selectedLedger = ledgerId !== 'all' ? Store.all().find(l => l.id === ledgerId) : null;
+  if ($('#convertToFinCard').style.display !== 'none') $('#convertToFinCard').style.display = 'none';
   if (selectedLedger && selectedLedger.style === 'financial'){
     $('#allLedgersCards').style.display = 'none';
     $('#genericTableWrap').style.display = 'none';
@@ -1477,6 +1494,7 @@ function renderCustomLedger(ledger, search){
     <div class="actions" style="margin-top:12px;">
       <button class="btn secondary" id="customAddRowBtn">+ Add row</button>
       <button class="btn secondary" id="customAddColBtn">+ Add column</button>
+      <button class="btn secondary" id="customConvertBtn">⇄ Convert to Financial ledger</button>
     </div>
   `;
 
@@ -1506,7 +1524,73 @@ function renderCustomLedger(ledger, search){
   });
   $('#customAddRowBtn').addEventListener('click', () => addCustomRow(ledger.id));
   $('#customAddColBtn').addEventListener('click', () => addCustomColumn(ledger.id));
+  $('#customConvertBtn').addEventListener('click', () => openConvertToFinancial(ledger.id));
 }
+
+/* ---- Convert a Custom ledger into a Financial ledger ---- */
+function openConvertToFinancial(ledgerId){
+  const ledger = Store.all().find(l => l.id === ledgerId);
+  if (!ledger) return;
+  const columns = ledger.columns || [];
+  const dateSel = $('#convDateCol'), checkSel = $('#convCheckCol'),
+        partSel = $('#convParticularsCol'), debitSel = $('#convDebitCol'),
+        creditSel = $('#convCreditCol'), remarksSel = $('#convRemarksCol'),
+        groupSel = $('#convGroupCol');
+  [dateSel, checkSel, partSel, debitSel, creditSel].forEach(sel => sel.innerHTML = '');
+  [remarksSel, groupSel].forEach(sel => sel.innerHTML = '<option value="__none__">— None —</option>');
+  columns.forEach(c => {
+    [dateSel, checkSel, partSel, debitSel, creditSel, remarksSel, groupSel].forEach(sel => sel.appendChild(new Option(c, c)));
+  });
+  dateSel.value = guessDateCol(columns);
+  checkSel.value = guessCheckCol(columns);
+  partSel.value = guessParticularsCol(columns);
+  debitSel.value = guessDebitCol(columns);
+  creditSel.value = guessCreditCol(columns);
+  remarksSel.value = guessRemarksCol(columns);
+  groupSel.value = guessGroupCol(columns);
+  $('#convertToFinCard').dataset.ledgerId = ledgerId;
+  $('#customLedgerWrap').style.display = 'none';
+  $('#convertToFinCard').style.display = 'block';
+  $('#convertToFinCard').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+$('#cancelConvertBtn').addEventListener('click', () => {
+  $('#convertToFinCard').style.display = 'none';
+  $('#customLedgerWrap').style.display = 'block';
+});
+
+$('#confirmConvertBtn').addEventListener('click', async () => {
+  const ledgerId = $('#convertToFinCard').dataset.ledgerId;
+  const ledger = Store.all().find(l => l.id === ledgerId);
+  if (!ledger) return;
+  const mapping = {
+    dateCol: $('#convDateCol').value, checkCol: $('#convCheckCol').value,
+    particularsCol: $('#convParticularsCol').value, debitCol: $('#convDebitCol').value,
+    creditCol: $('#convCreditCol').value, remarksCol: $('#convRemarksCol').value,
+    groupCol: $('#convGroupCol').value
+  };
+  if (!confirm(`Convert "${ledger.name}" to a Financial ledger? This reshapes all ${ledger.rows.length} rows using the mapping above.`)) return;
+  const btn = $('#confirmConvertBtn');
+  const btnLabelDefault = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Converting…';
+  try {
+    const sheetRows = ledger.rows.map(r => r.data);
+    const built = buildFinancialRows(sheetRows, ledger.columns || [], mapping);
+    await db.collection('ledgers').doc(ledgerId).update({
+      style: 'financial',
+      dateCol: built.dateCol, checkCol: built.checkCol, particularsCol: built.particularsCol,
+      debitCol: built.debitCol, creditCol: built.creditCol, remarksCol: built.remarksCol, groupCol: built.groupCol,
+      rows: built.rows
+    });
+    $('#convertToFinCard').style.display = 'none';
+    $('#ledgerFilter').value = ledgerId;
+    renderLedgers();
+  } catch(err){
+    alert('Could not convert ledger: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = btnLabelDefault;
+  }
+});
 
 ['#searchInput'].forEach(sel => $(sel).addEventListener('input', renderLedgers));
 $('#statusFilter').addEventListener('change', renderLedgers);
@@ -1574,10 +1658,24 @@ function updateStamps(){
   const released = statusRecords.filter(r=>r.released).length + finPaid;
   const pending = (statusRecords.length - statusRecords.filter(r=>r.released).length) + finUnpaid;
 
+  let totalDebit = 0, totalCredit = 0;
+  financialLedgers.forEach(l => {
+    (l.rows || []).forEach(r => {
+      if (r.isGroupRow) return;
+      totalDebit += parseFloat(r.debit) || 0;
+      totalCredit += parseFloat(r.credit) || 0;
+    });
+  });
+  const totalBalance = totalDebit - totalCredit;
+
   $('#stampRow').innerHTML = `
     <div class="stamp"><span class="num">${total}</span><span class="lbl">Total</span></div>
     <div class="stamp released"><span class="num">${released}</span><span class="lbl">Released</span></div>
     <div class="stamp pending"><span class="num">${pending}</span><span class="lbl">Non‑Released</span></div>
+    <div class="stamp pending money"><span class="num">${finUnpaid}</span><span class="lbl">FA Not Paid</span></div>
+    <div class="stamp money"><span class="num">₱${fmtMoney(totalDebit)}</span><span class="lbl">Total Debit</span></div>
+    <div class="stamp money"><span class="num">₱${fmtMoney(totalCredit)}</span><span class="lbl">Total Credit</span></div>
+    <div class="stamp released money"><span class="num">₱${fmtMoney(totalBalance)}</span><span class="lbl">Total Balance</span></div>
   `;
   $('#ledgerCountTab').textContent = Store.all().length ? `(${Store.all().length})` : '';
 }

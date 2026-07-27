@@ -232,6 +232,16 @@
   }
   .ledger-card .card-style.financial{background:var(--released-bg);color:var(--released);}
   .ledger-card .card-style.status{background:var(--pending-bg);color:var(--pending);}
+
+  .folder-group{margin-bottom:18px;}
+  .folder-header{
+    display:flex;align-items:center;gap:8px;font-family:'Fraunces',serif;font-weight:600;
+    font-size:14px;color:var(--ink);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--rule);
+  }
+  .folder-count{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--ink-soft);
+    background:var(--paper-card);border:1px solid var(--rule);border-radius:20px;padding:1px 9px;
+  }
   .result-count{color:var(--ink-soft);font-size:12.5px;margin-bottom:8px;font-family:'IBM Plex Mono',monospace;}
   footer.note{margin-top:26px;color:var(--ink-soft);font-size:12px;line-height:1.6;border-top:1px solid var(--rule);padding-top:14px;}
   code{background:#F0EEE3;padding:1px 5px;border-radius:3px;font-family:'IBM Plex Mono',monospace;}
@@ -312,7 +322,6 @@
   <nav class="tabs">
     <button data-tab="import" class="active">Import</button>
     <button data-tab="ledgers">Ledgers <span class="count" id="ledgerCountTab"></span></button>
-    <button data-tab="masterlist">Masterlist <span class="count" id="masterCountTab"></span></button>
   </nav>
 
   <!-- IMPORT -->
@@ -394,6 +403,10 @@
         <label>Ledger name</label>
         <input type="text" id="ledgerNameInput" placeholder="e.g. July 2026 OEC Applications">
       </div>
+      <div class="field-row">
+        <label>Folder (optional)</label>
+        <input type="text" id="ledgerFolderInput" placeholder="e.g. Villa Montañosa HOA — leave blank for none">
+      </div>
 
       <div class="preview-table"><table class="master" id="previewTable"></table></div>
 
@@ -408,14 +421,14 @@
   <section class="panel" id="panel-ledgers">
     <div class="actions" style="margin-bottom:14px;">
       <button class="btn danger" id="deleteAllLedgersBtn">Delete all ledgers</button>
+      <div class="style-toggle" style="margin-left:auto;">
+        <button type="button" id="viewFlatBtn" class="active">No folders</button>
+        <button type="button" id="viewFoldersBtn">With folders</button>
+      </div>
     </div>
-    <div class="card" id="ledgerList"></div>
-  </section>
 
-  <!-- MASTERLIST -->
-  <section class="panel" id="panel-masterlist">
     <div class="toolbar">
-      <input type="text" id="searchInput" placeholder="Search masterlist…">
+      <input type="text" id="searchInput" placeholder="Search ledgers…">
       <select id="statusFilter">
         <option value="all">All statuses</option>
         <option value="released">Released only</option>
@@ -505,6 +518,7 @@ const Store = {
 let pendingImport = null; // {columns, sheetRows, workbook, sheetNames}
 let sort = { col: null, dir: 1 };
 let importStyle = 'status'; // 'status' | 'financial'
+let folderView = 'flat'; // 'flat' | 'folders'
 
 /* ============================================================
    HELPERS
@@ -572,7 +586,6 @@ $$('nav.tabs button').forEach(btn => {
     btn.classList.add('active');
     $('#panel-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'ledgers') renderLedgers();
-    if (btn.dataset.tab === 'masterlist') renderMasterlist();
   });
 });
 
@@ -615,6 +628,7 @@ function handleFile(file){
     sheetSelect.onchange = () => loadSheet(sheetSelect.value);
     loadSheet(workbook.SheetNames[0]);
     $('#ledgerNameInput').value = file.name.replace(/\.(xlsx|xls|csv)$/i,'');
+    $('#ledgerFolderInput').value = '';
     $('#mappingCard').style.display = 'block';
     $('#mappingCard').scrollIntoView({behavior:'smooth', block:'nearest'});
   };
@@ -678,6 +692,19 @@ $('#styleFinancialBtn').addEventListener('click', () => {
   $('#statusFields').style.display = 'none';
 });
 
+$('#viewFlatBtn').addEventListener('click', () => {
+  folderView = 'flat';
+  $('#viewFlatBtn').classList.add('active');
+  $('#viewFoldersBtn').classList.remove('active');
+  renderLedgers();
+});
+$('#viewFoldersBtn').addEventListener('click', () => {
+  folderView = 'folders';
+  $('#viewFoldersBtn').classList.add('active');
+  $('#viewFlatBtn').classList.remove('active');
+  renderLedgers();
+});
+
 function renderPreview(columns, rows){
   const table = $('#previewTable');
   table.innerHTML = `<thead><tr>${columns.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
@@ -732,6 +759,7 @@ function buildStatusRows(sheetRows, columns, mapping){
 $('#createLedgerBtn').addEventListener('click', async () => {
   if (!pendingImport) return;
   const baseName = $('#ledgerNameInput').value.trim() || pendingImport.fileName.replace(/\.(xlsx|xls|csv)$/i,'');
+  const folder = $('#ledgerFolderInput').value.trim();
   const allSheetsChk = $('#allSheetsChk');
   const importAll = !!(allSheetsChk && allSheetsChk.checked);
   const sheetNames = importAll ? pendingImport.workbook.SheetNames : [pendingImport.sheetName];
@@ -761,7 +789,7 @@ $('#createLedgerBtn').addEventListener('click', async () => {
       if (importStyle === 'financial'){
         const built = buildFinancialRows(sheetRows, columns, mapping);
         ledgersToCreate.push({
-          id: uid(), name: ledgerName, style: 'financial',
+          id: uid(), name: ledgerName, style: 'financial', folder,
           fileName: pendingImport.fileName, sheetName,
           importedAt: new Date().toISOString(),
           dateCol: built.dateCol, checkCol: built.checkCol, particularsCol: built.particularsCol,
@@ -771,7 +799,7 @@ $('#createLedgerBtn').addEventListener('click', async () => {
       } else {
         const built = buildStatusRows(sheetRows, columns, mapping);
         ledgersToCreate.push({
-          id: uid(), name: ledgerName, style: 'status',
+          id: uid(), name: ledgerName, style: 'status', folder,
           fileName: pendingImport.fileName, sheetName,
           importedAt: new Date().toISOString(),
           releaseCol: built.releaseCol, nameCol: built.nameCol,
@@ -804,64 +832,14 @@ $('#createLedgerBtn').addEventListener('click', async () => {
 /* ============================================================
    LEDGERS PANEL
    ============================================================ */
-function renderLedgers(){
-  const wrap = $('#ledgerList');
-  const ledgers = Store.all();
-  if (!ledgers.length){
-    wrap.innerHTML = `<div class="empty"><div class="glyph">🗂️</div>No ledgers yet. Import a spreadsheet to create the first one.</div>`;
-    return;
-  }
-  wrap.innerHTML = ledgers.map(l => {
-    if (l.style === 'financial'){
-      const totalDebit = l.rows.reduce((s,r)=> s + (parseFloat(r.debit)||0), 0);
-      const totalCredit = l.rows.reduce((s,r)=> s + (parseFloat(r.credit)||0), 0);
-      const paid = !!l.paid;
-      return `<div class="ledger-item">
-        <div>
-          <div class="name">${l.name}</div>
-          <div class="meta">${l.fileName} · ${l.rows.length} rows · imported ${fmtDate(l.importedAt)}</div>
-        </div>
-        <div class="counts">
-          <span class="pill released">₱${fmtMoney(totalDebit)} debit</span>
-          <span class="pill released">₱${fmtMoney(totalCredit)} credit</span>
-          <button type="button" class="pill ${paid?'released':'pending'}" data-toggle-paid="${l.id}" data-paid="${paid}" style="border:none;cursor:pointer;">${paid ? "✓ ALL FA's Paid" : "Not yet ALL FA's Paid"}</button>
-          <button class="icon-btn" title="Delete ledger" data-del="${l.id}">✕</button>
-        </div>
-      </div>`;
-    }
-    const released = l.rows.filter(r=>r.released).length;
-    const pending = l.rows.length - released;
-    return `<div class="ledger-item">
-      <div>
-        <div class="name">${l.name}</div>
-        <div class="meta">${l.fileName} · ${l.rows.length} rows · imported ${fmtDate(l.importedAt)}</div>
-      </div>
-      <div class="counts">
-        <span class="pill released">${released} released</span>
-        <span class="pill pending">${pending} pending</span>
-        <button class="icon-btn" title="Delete ledger" data-del="${l.id}">✕</button>
-      </div>
-    </div>`;
-  }).join('');
-  wrap.querySelectorAll('[data-del]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      if (confirm('Remove this ledger and its rows from the masterlist?')){
-        try { await Store.removeLedger(btn.dataset.del); }
-        catch(err){ alert('Could not delete: ' + err.message); }
-      }
-    });
-  });
-  wrap.querySelectorAll('[data-toggle-paid]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const current = btn.dataset.paid === 'true';
-      setLedgerPaid(btn.dataset.togglePaid, !current);
-    });
-  });
-}
-
 async function setLedgerPaid(ledgerId, paid){
   try { await db.collection('ledgers').doc(ledgerId).update({ paid }); }
   catch(err){ alert('Could not update paid status: ' + err.message); }
+}
+
+async function setLedgerFolder(ledgerId, folder){
+  try { await db.collection('ledgers').doc(ledgerId).update({ folder }); }
+  catch(err){ alert('Could not update folder: ' + err.message); }
 }
 
 $('#deleteAllLedgersBtn').addEventListener('click', async () => {
@@ -882,7 +860,7 @@ $('#deleteAllLedgersBtn').addEventListener('click', async () => {
 });
 
 /* ============================================================
-   MASTERLIST PANEL
+   LEDGERS & MASTERLIST VIEW
    ============================================================ */
 function allRecords(){
   const out = [];
@@ -914,7 +892,33 @@ function ledgerRowMatchesSearch(l, r, search){
   return Object.values(r.data).some(v => String(v).toLowerCase().includes(search));
 }
 
-function renderMasterlist(){
+function ledgerCardHtml(l, search){
+  const isFin = l.style === 'financial';
+  let meta;
+  if (search){
+    const matchCount = l.rows.filter(r => ledgerRowMatchesSearch(l, r, search)).length;
+    meta = `${matchCount} matching row${matchCount===1?'':'s'}`;
+  } else {
+    meta = isFin
+      ? `₱${fmtMoney(l.rows.reduce((s,r)=>s+(parseFloat(r.debit)||0),0))} debit · ${l.rows.length} rows`
+      : `${l.rows.filter(r=>r.released).length} released · ${l.rows.length} rows`;
+  }
+  const paid = !!l.paid;
+  return `<div class="ledger-card" tabindex="0" data-open-ledger="${l.id}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;width:100%;">
+      <span class="card-style ${isFin?'financial':'status'}">${isFin ? 'Financial' : 'Case Status'}</span>
+      <button type="button" class="icon-btn" data-del="${l.id}" title="Delete ledger" style="padding:0 2px;">✕</button>
+    </div>
+    <span class="card-name">${l.name}</span>
+    <span class="card-meta">${meta}</span>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+      ${isFin ? `<button type="button" class="pill ${paid?'released':'pending'}" data-toggle-paid="${l.id}" data-paid="${paid}" style="border:none;cursor:pointer;">${paid ? "✓ ALL FA's Paid" : "Not yet ALL FA's Paid"}</button>` : ''}
+      <button type="button" class="fin-add-group" data-folder-edit="${l.id}" data-folder-current="${l.folder || ''}">${l.folder ? '📁 ' + l.folder : '+ Add to folder'}</button>
+    </div>
+  </div>`;
+}
+
+function renderLedgers(){
   populateLedgerFilter();
   const search = $('#searchInput').value.trim().toLowerCase();
   const status = $('#statusFilter').value;
@@ -926,7 +930,8 @@ function renderMasterlist(){
     $('#genericTableWrap').style.display = 'none';
     $('#finLedgerWrap').style.display = 'block';
     renderFinancialLedger(selectedLedger, search);
-    $('#resultCount').textContent = `${selectedLedger.rows.length} rows in this ledger`;
+    $('#resultCount').innerHTML = `<a href="#" id="backToAllLedgers" style="color:var(--ledger-red);font-weight:600;">← All ledgers</a> · ${selectedLedger.rows.length} rows in this ledger`;
+    $('#backToAllLedgers').addEventListener('click', (e) => { e.preventDefault(); $('#ledgerFilter').value = 'all'; renderLedgers(); });
     return;
   }
   $('#genericTableWrap').style.display = 'block';
@@ -944,32 +949,31 @@ function renderMasterlist(){
     }
     if (!ledgersToShow.length){
       cardsWrap.innerHTML = `<div class="empty" style="padding:20px;">No ledgers match “${$('#searchInput').value.trim()}”.</div>`;
+    } else if (folderView === 'folders'){
+      const groups = {};
+      ledgersToShow.forEach(l => {
+        const key = l.folder && l.folder.trim() ? l.folder.trim() : 'No folder';
+        (groups[key] = groups[key] || []).push(l);
+      });
+      const folderNames = Object.keys(groups).sort((a,b) => {
+        if (a === 'No folder') return 1;
+        if (b === 'No folder') return -1;
+        return a.localeCompare(b);
+      });
+      cardsWrap.innerHTML = folderNames.map(name => `
+        <div class="folder-group">
+          <div class="folder-header">📁 ${name} <span class="folder-count">${groups[name].length}</span></div>
+          <div class="ledger-cards">${groups[name].map(l => ledgerCardHtml(l, search)).join('')}</div>
+        </div>
+      `).join('');
     } else {
-      cardsWrap.innerHTML = `<div class="ledger-cards">${ledgersToShow.map(l => {
-        const isFin = l.style === 'financial';
-        let meta;
-        if (search){
-          const matchCount = l.rows.filter(r => ledgerRowMatchesSearch(l, r, search)).length;
-          meta = `${matchCount} matching row${matchCount===1?'':'s'}`;
-        } else {
-          meta = isFin
-            ? `₱${fmtMoney(l.rows.reduce((s,r)=>s+(parseFloat(r.debit)||0),0))} debit · ${l.rows.length} rows`
-            : `${l.rows.filter(r=>r.released).length} released · ${l.rows.length} rows`;
-        }
-        const paid = !!l.paid;
-        return `<div class="ledger-card" tabindex="0" data-open-ledger="${l.id}">
-          <span class="card-style ${isFin?'financial':'status'}">${isFin ? 'Financial' : 'Case Status'}</span>
-          <span class="card-name">${l.name}</span>
-          <span class="card-meta">${meta}</span>
-          ${isFin ? `<button type="button" class="pill ${paid?'released':'pending'}" data-toggle-paid="${l.id}" data-paid="${paid}" style="border:none;cursor:pointer;align-self:flex-start;">${paid ? "✓ ALL FA's Paid" : "Not yet ALL FA's Paid"}</button>` : ''}
-        </div>`;
-      }).join('')}</div>`;
+      cardsWrap.innerHTML = `<div class="ledger-cards">${ledgersToShow.map(l => ledgerCardHtml(l, search)).join('')}</div>`;
     }
     cardsWrap.querySelectorAll('[data-open-ledger]').forEach(card => {
       card.addEventListener('click', (e) => {
-        if (e.target.closest('[data-toggle-paid]')) return;
+        if (e.target.closest('[data-toggle-paid]') || e.target.closest('[data-del]') || e.target.closest('[data-folder-edit]')) return;
         $('#ledgerFilter').value = card.dataset.openLedger;
-        renderMasterlist();
+        renderLedgers();
       });
     });
     cardsWrap.querySelectorAll('[data-toggle-paid]').forEach(btn => {
@@ -977,6 +981,24 @@ function renderMasterlist(){
         e.stopPropagation();
         const current = btn.dataset.paid === 'true';
         setLedgerPaid(btn.dataset.togglePaid, !current);
+      });
+    });
+    cardsWrap.querySelectorAll('[data-folder-edit]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const current = btn.dataset.folderCurrent || '';
+        const next = prompt('Folder name (leave blank to remove from folder):', current);
+        if (next === null) return;
+        setLedgerFolder(btn.dataset.folderEdit, next.trim());
+      });
+    });
+    cardsWrap.querySelectorAll('[data-del]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (confirm('Remove this ledger and its rows?')){
+          try { await Store.removeLedger(btn.dataset.del); }
+          catch(err){ alert('Could not delete: ' + err.message); }
+        }
       });
     });
   } else {
@@ -1009,8 +1031,12 @@ function renderMasterlist(){
     });
   }
 
-  $('#resultCount').textContent = `${records.length} of ${allRecords().length - financialHiddenCount} records` +
+  const backLink = ledgerId !== 'all' ? `<a href="#" id="backToAllLedgers" style="color:var(--ledger-red);font-weight:600;">← All ledgers</a> · ` : '';
+  $('#resultCount').innerHTML = backLink + `${records.length} of ${allRecords().length - financialHiddenCount} records` +
     (financialHiddenCount ? ` · select a financial ledger above to view its Debit/Credit/Balance sheet` : '');
+  if (ledgerId !== 'all'){
+    $('#backToAllLedgers').addEventListener('click', (e) => { e.preventDefault(); $('#ledgerFilter').value = 'all'; renderLedgers(); });
+  }
 
   const table = $('#masterTable');
   const arrow = col => sort.col === col ? `<span class="arrow">${sort.dir===1?'▲':'▼'}</span>` : '';
@@ -1029,7 +1055,7 @@ function renderMasterlist(){
     th.addEventListener('click', () => {
       const col = th.dataset.sort;
       if (sort.col === col) sort.dir *= -1; else { sort.col = col; sort.dir = 1; }
-      renderMasterlist();
+      renderLedgers();
     });
   });
 }
@@ -1203,9 +1229,9 @@ function renderFinancialLedger(ledger, search){
   });
 }
 
-['#searchInput'].forEach(sel => $(sel).addEventListener('input', renderMasterlist));
-$('#statusFilter').addEventListener('change', renderMasterlist);
-$('#ledgerFilter').addEventListener('change', renderMasterlist);
+['#searchInput'].forEach(sel => $(sel).addEventListener('input', renderLedgers));
+$('#statusFilter').addEventListener('change', renderLedgers);
+$('#ledgerFilter').addEventListener('change', renderLedgers);
 
 /* ============================================================
    EXPORT / BACKUP
@@ -1275,13 +1301,12 @@ function updateStamps(){
     <div class="stamp pending"><span class="num">${pending}</span><span class="lbl">Non‑Released</span></div>
   `;
   $('#ledgerCountTab').textContent = Store.all().length ? `(${Store.all().length})` : '';
-  $('#masterCountTab').textContent = records.length ? `(${records.length})` : '';
 }
 
 /* ============================================================
    AUTH GATE
    ============================================================ */
-function refreshAll(){ updateStamps(); renderLedgers(); renderMasterlist(); }
+function refreshAll(){ updateStamps(); renderLedgers(); }
 
 function showApp(user){
   $('#authScreen').style.display = 'none';

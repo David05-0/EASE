@@ -232,6 +232,11 @@
   }
   .ledger-card .card-style.financial{background:var(--released-bg);color:var(--released);}
   .ledger-card .card-style.status{background:var(--pending-bg);color:var(--pending);}
+  .ledger-card .card-style.custom{background:#F2ECD9;color:var(--gold);}
+  table.finledger thead th[data-col-rename]{cursor:pointer;}
+  table.finledger thead th[data-col-rename]:hover{color:var(--ledger-red);}
+  table.finledger thead th [data-col-del]{cursor:pointer;}
+  table.finledger thead th [data-col-del]:hover{color:var(--ledger-red);opacity:1 !important;}
 
   .folder-group{margin-bottom:18px;}
   .folder-header{
@@ -333,6 +338,31 @@
       <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
     </div>
 
+    <div class="actions" style="margin-top:14px;">
+      <button class="btn secondary" id="newBlankLedgerBtn">+ Create blank custom ledger</button>
+    </div>
+
+    <div class="card mapping" id="blankCustomCard" style="display:none;padding:20px 22px;margin-top:18px;">
+      <h3 style="font-family:'Fraunces',serif;font-size:18px;margin:0 0 4px;font-weight:600;">New custom ledger</h3>
+      <div class="note">Define your own columns and start with a blank table — no file needed.</div>
+      <div class="field-row">
+        <label>Ledger name</label>
+        <input type="text" id="blankLedgerNameInput" placeholder="e.g. Office Supplies Tracker">
+      </div>
+      <div class="field-row">
+        <label>Folder (optional)</label>
+        <input type="text" id="blankLedgerFolderInput" placeholder="e.g. Villa Montañosa HOA — leave blank for none">
+      </div>
+      <div class="field-row">
+        <label>Columns</label>
+        <input type="text" id="blankLedgerColumnsInput" placeholder="Comma-separated, e.g. Name, Amount, Notes">
+      </div>
+      <div class="actions">
+        <button class="btn" id="createBlankLedgerBtn">Create ledger</button>
+        <button class="btn secondary" id="cancelBlankBtn">Cancel</button>
+      </div>
+    </div>
+
     <div class="card mapping" id="mappingCard" style="display:none;">
       <h3 id="mapTitle">Confirm columns</h3>
       <div class="note">The system found these columns. Confirm which one marks a case as released, and which one identifies it.</div>
@@ -354,7 +384,12 @@
         <div class="style-toggle">
           <button type="button" id="styleStatusBtn" class="active">Case Status</button>
           <button type="button" id="styleFinancialBtn">Financial Ledger</button>
+          <button type="button" id="styleCustomBtn">Custom Ledger</button>
         </div>
+      </div>
+
+      <div id="customFields" style="display:none;">
+        <div class="fin-hint" style="margin-bottom:16px;">Every column from the sheet is imported as-is — no special columns required. You can add, rename, or remove columns afterward, and every cell is directly editable.</div>
       </div>
 
       <div id="statusFields">
@@ -445,6 +480,7 @@
     <div id="allLedgersCards" style="display:none;"></div>
     <div class="table-wrap" id="genericTableWrap"><table class="master" id="masterTable"></table></div>
     <div id="finLedgerWrap" style="display:none;"></div>
+    <div id="customLedgerWrap" style="display:none;"></div>
   </section>
 
   <footer class="note">
@@ -681,15 +717,28 @@ $('#styleStatusBtn').addEventListener('click', () => {
   importStyle = 'status';
   $('#styleStatusBtn').classList.add('active');
   $('#styleFinancialBtn').classList.remove('active');
+  $('#styleCustomBtn').classList.remove('active');
   $('#statusFields').style.display = 'block';
   $('#financialFields').style.display = 'none';
+  $('#customFields').style.display = 'none';
 });
 $('#styleFinancialBtn').addEventListener('click', () => {
   importStyle = 'financial';
   $('#styleFinancialBtn').classList.add('active');
   $('#styleStatusBtn').classList.remove('active');
+  $('#styleCustomBtn').classList.remove('active');
   $('#financialFields').style.display = 'block';
   $('#statusFields').style.display = 'none';
+  $('#customFields').style.display = 'none';
+});
+$('#styleCustomBtn').addEventListener('click', () => {
+  importStyle = 'custom';
+  $('#styleCustomBtn').classList.add('active');
+  $('#styleStatusBtn').classList.remove('active');
+  $('#styleFinancialBtn').classList.remove('active');
+  $('#customFields').style.display = 'block';
+  $('#statusFields').style.display = 'none';
+  $('#financialFields').style.display = 'none';
 });
 
 $('#viewFlatBtn').addEventListener('click', () => {
@@ -716,6 +765,41 @@ $('#cancelImportBtn').addEventListener('click', () => {
   $('#mappingCard').style.display = 'none';
   fileInput.value = '';
   if ($('#allSheetsChk')) $('#allSheetsChk').checked = false;
+});
+
+$('#newBlankLedgerBtn').addEventListener('click', () => {
+  $('#mappingCard').style.display = 'none';
+  $('#blankCustomCard').style.display = 'block';
+  $('#blankCustomCard').scrollIntoView({behavior:'smooth', block:'nearest'});
+});
+$('#cancelBlankBtn').addEventListener('click', () => {
+  $('#blankCustomCard').style.display = 'none';
+});
+$('#createBlankLedgerBtn').addEventListener('click', async () => {
+  const name = $('#blankLedgerNameInput').value.trim();
+  const folder = $('#blankLedgerFolderInput').value.trim();
+  const columns = $('#blankLedgerColumnsInput').value.trim().split(',').map(c => c.trim()).filter(Boolean);
+  if (!name) return alert('Give the ledger a name.');
+  if (!columns.length) return alert('Add at least one column, separated by commas.');
+  const btn = $('#createBlankLedgerBtn');
+  const btnLabelDefault = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    await Store.addLedger({
+      id: uid(), name, style: 'custom', folder,
+      importedAt: new Date().toISOString(),
+      columns, rows: []
+    });
+    $('#blankCustomCard').style.display = 'none';
+    $('#blankLedgerNameInput').value = '';
+    $('#blankLedgerFolderInput').value = '';
+    $('#blankLedgerColumnsInput').value = '';
+    document.querySelector('nav.tabs button[data-tab="ledgers"]').click();
+  } catch(err){
+    alert('Could not create ledger: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = btnLabelDefault;
+  }
 });
 
 function resolveCol(preferred, columns, guessFn){
@@ -769,7 +853,7 @@ $('#createLedgerBtn').addEventListener('click', async () => {
     particularsCol: $('#particularsColSelect').value, debitCol: $('#debitColSelect').value,
     creditCol: $('#creditColSelect').value, remarksCol: $('#remarksColSelect').value,
     groupCol: $('#groupColSelect').value
-  } : {
+  } : importStyle === 'custom' ? {} : {
     releaseCol: $('#releaseColSelect').value, nameCol: $('#nameColSelect').value
   };
 
@@ -795,6 +879,14 @@ $('#createLedgerBtn').addEventListener('click', async () => {
           dateCol: built.dateCol, checkCol: built.checkCol, particularsCol: built.particularsCol,
           debitCol: built.debitCol, creditCol: built.creditCol, remarksCol: built.remarksCol, groupCol: built.groupCol,
           columns, rows: built.rows
+        });
+      } else if (importStyle === 'custom'){
+        const rows = sheetRows.map(r => ({ id: uid(), data: r }));
+        ledgersToCreate.push({
+          id: uid(), name: ledgerName, style: 'custom', folder,
+          fileName: pendingImport.fileName, sheetName,
+          importedAt: new Date().toISOString(),
+          columns, rows
         });
       } else {
         const built = buildStatusRows(sheetRows, columns, mapping);
@@ -894,19 +986,25 @@ function ledgerRowMatchesSearch(l, r, search){
 
 function ledgerCardHtml(l, search){
   const isFin = l.style === 'financial';
+  const isCustom = l.style === 'custom';
   let meta;
   if (search){
     const matchCount = l.rows.filter(r => ledgerRowMatchesSearch(l, r, search)).length;
     meta = `${matchCount} matching row${matchCount===1?'':'s'}`;
+  } else if (isFin){
+    meta = `₱${fmtMoney(l.rows.reduce((s,r)=>s+(parseFloat(r.debit)||0),0))} debit · ${l.rows.length} rows`;
+  } else if (isCustom){
+    const colCount = (l.columns || []).length;
+    meta = `${l.rows.length} row${l.rows.length===1?'':'s'} · ${colCount} column${colCount===1?'':'s'}`;
   } else {
-    meta = isFin
-      ? `₱${fmtMoney(l.rows.reduce((s,r)=>s+(parseFloat(r.debit)||0),0))} debit · ${l.rows.length} rows`
-      : `${l.rows.filter(r=>r.released).length} released · ${l.rows.length} rows`;
+    meta = `${l.rows.filter(r=>r.released).length} released · ${l.rows.length} rows`;
   }
   const paid = !!l.paid;
+  const styleClass = isFin ? 'financial' : isCustom ? 'custom' : 'status';
+  const styleLabel = isFin ? 'Financial' : isCustom ? 'Custom' : 'Case Status';
   return `<div class="ledger-card" tabindex="0" data-open-ledger="${l.id}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;width:100%;">
-      <span class="card-style ${isFin?'financial':'status'}">${isFin ? 'Financial' : 'Case Status'}</span>
+      <span class="card-style ${styleClass}">${styleLabel}</span>
       <button type="button" class="icon-btn" data-del="${l.id}" title="Delete ledger" style="padding:0 2px;">✕</button>
     </div>
     <span class="card-name">${l.name}</span>
@@ -929,13 +1027,25 @@ function renderLedgers(){
     $('#allLedgersCards').style.display = 'none';
     $('#genericTableWrap').style.display = 'none';
     $('#finLedgerWrap').style.display = 'block';
+    $('#customLedgerWrap').style.display = 'none';
     renderFinancialLedger(selectedLedger, search);
+    $('#resultCount').innerHTML = `<a href="#" id="backToAllLedgers" style="color:var(--ledger-red);font-weight:600;">← All ledgers</a> · ${selectedLedger.rows.length} rows in this ledger`;
+    $('#backToAllLedgers').addEventListener('click', (e) => { e.preventDefault(); $('#ledgerFilter').value = 'all'; renderLedgers(); });
+    return;
+  }
+  if (selectedLedger && selectedLedger.style === 'custom'){
+    $('#allLedgersCards').style.display = 'none';
+    $('#genericTableWrap').style.display = 'none';
+    $('#finLedgerWrap').style.display = 'none';
+    $('#customLedgerWrap').style.display = 'block';
+    renderCustomLedger(selectedLedger, search);
     $('#resultCount').innerHTML = `<a href="#" id="backToAllLedgers" style="color:var(--ledger-red);font-weight:600;">← All ledgers</a> · ${selectedLedger.rows.length} rows in this ledger`;
     $('#backToAllLedgers').addEventListener('click', (e) => { e.preventDefault(); $('#ledgerFilter').value = 'all'; renderLedgers(); });
     return;
   }
   $('#genericTableWrap').style.display = 'block';
   $('#finLedgerWrap').style.display = 'none';
+  $('#customLedgerWrap').style.display = 'none';
 
   const cardsWrap = $('#allLedgersCards');
   if (ledgerId === 'all' && Store.all().length){
@@ -1005,8 +1115,8 @@ function renderLedgers(){
     cardsWrap.style.display = 'none';
   }
 
-  let records = allRecords().filter(r => r.ledgerStyle !== 'financial');
-  const financialHiddenCount = allRecords().length - records.length;
+  let records = allRecords().filter(r => r.ledgerStyle !== 'financial' && r.ledgerStyle !== 'custom');
+  const hiddenCount = allRecords().length - records.length;
   if (ledgerId !== 'all') records = records.filter(r => r.ledgerId === ledgerId);
   if (status !== 'all') records = records.filter(r => status === 'released' ? r.released : !r.released);
   if (search){
@@ -1032,8 +1142,8 @@ function renderLedgers(){
   }
 
   const backLink = ledgerId !== 'all' ? `<a href="#" id="backToAllLedgers" style="color:var(--ledger-red);font-weight:600;">← All ledgers</a> · ` : '';
-  $('#resultCount').innerHTML = backLink + `${records.length} of ${allRecords().length - financialHiddenCount} records` +
-    (financialHiddenCount ? ` · select a financial ledger above to view its Debit/Credit/Balance sheet` : '');
+  $('#resultCount').innerHTML = backLink + `${records.length} of ${allRecords().length - hiddenCount} records` +
+    (hiddenCount ? ` · select a financial or custom ledger above to view it directly` : '');
   if (ledgerId !== 'all'){
     $('#backToAllLedgers').addEventListener('click', (e) => { e.preventDefault(); $('#ledgerFilter').value = 'all'; renderLedgers(); });
   }
@@ -1229,6 +1339,131 @@ function renderFinancialLedger(ledger, search){
   });
 }
 
+/* ---- Custom ledger (freeform columns) rendering ---- */
+async function updateCustomCell(ledgerId, rowId, field, value){
+  const ledger = Store.all().find(l => l.id === ledgerId);
+  if (!ledger) return;
+  const rows = ledger.rows.map(r => r.id === rowId ? { ...r, data: { ...r.data, [field]: value } } : r);
+  try { await db.collection('ledgers').doc(ledgerId).update({ rows }); }
+  catch(err){ alert('Could not save that change: ' + err.message); }
+}
+
+async function addCustomRow(ledgerId){
+  const ledger = Store.all().find(l => l.id === ledgerId);
+  if (!ledger) return;
+  const rows = [...ledger.rows, { id: uid(), data: {} }];
+  try { await db.collection('ledgers').doc(ledgerId).update({ rows }); }
+  catch(err){ alert('Could not add row: ' + err.message); }
+}
+
+async function deleteCustomRow(ledgerId, rowId){
+  const ledger = Store.all().find(l => l.id === ledgerId);
+  if (!ledger) return;
+  const rows = ledger.rows.filter(r => r.id !== rowId);
+  try { await db.collection('ledgers').doc(ledgerId).update({ rows }); }
+  catch(err){ alert('Could not delete row: ' + err.message); }
+}
+
+async function addCustomColumn(ledgerId){
+  const ledger = Store.all().find(l => l.id === ledgerId);
+  if (!ledger) return;
+  const name = prompt('New column name:');
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+  if ((ledger.columns || []).includes(trimmed)) return alert('A column with that name already exists.');
+  const columns = [...(ledger.columns || []), trimmed];
+  try { await db.collection('ledgers').doc(ledgerId).update({ columns }); }
+  catch(err){ alert('Could not add column: ' + err.message); }
+}
+
+async function renameCustomColumn(ledgerId, oldName){
+  const ledger = Store.all().find(l => l.id === ledgerId);
+  if (!ledger) return;
+  const name = prompt('Rename column:', oldName);
+  if (!name || !name.trim() || name.trim() === oldName) return;
+  const trimmed = name.trim();
+  if (ledger.columns.includes(trimmed)) return alert('A column with that name already exists.');
+  const columns = ledger.columns.map(c => c === oldName ? trimmed : c);
+  const rows = ledger.rows.map(r => {
+    const data = { ...r.data };
+    if (oldName in data){ data[trimmed] = data[oldName]; delete data[oldName]; }
+    return { ...r, data };
+  });
+  try { await db.collection('ledgers').doc(ledgerId).update({ columns, rows }); }
+  catch(err){ alert('Could not rename column: ' + err.message); }
+}
+
+async function deleteCustomColumn(ledgerId, colName){
+  const ledger = Store.all().find(l => l.id === ledgerId);
+  if (!ledger) return;
+  if (ledger.columns.length <= 1) return alert('A ledger needs at least one column.');
+  if (!confirm(`Delete column "${colName}"? This removes that data from every row.`)) return;
+  const columns = ledger.columns.filter(c => c !== colName);
+  const rows = ledger.rows.map(r => {
+    const data = { ...r.data };
+    delete data[colName];
+    return { ...r, data };
+  });
+  try { await db.collection('ledgers').doc(ledgerId).update({ columns, rows }); }
+  catch(err){ alert('Could not delete column: ' + err.message); }
+}
+
+function renderCustomLedger(ledger, search){
+  const wrap = $('#customLedgerWrap');
+  let rows = ledger.rows;
+  if (search){
+    rows = rows.filter(r => Object.values(r.data).some(v => String(v).toLowerCase().includes(search)));
+  }
+  const columns = (ledger.columns && ledger.columns.length) ? ledger.columns : [];
+
+  const bodyRows = rows.map(r => `<tr data-id="${r.id}">
+      ${columns.map(c => `<td contenteditable="true" data-field="${c}">${r.data[c] ?? ''}</td>`).join('')}
+      <td class="row-actions"><button class="icon-btn" data-del-row="${r.id}" title="Delete row">✕</button></td>
+    </tr>`).join('');
+
+  wrap.innerHTML = `
+    <div class="fin-hint">Click any cell to edit it — everything saves automatically. Click a column header to rename it, or the ✕ next to it to delete that column.</div>
+    <div class="table-wrap"><table class="finledger">
+      <thead><tr>
+        ${columns.map(c => `<th data-col-rename="${c}">${c} <span data-col-del="${c}" title="Delete column" style="opacity:.5;margin-left:4px;">✕</span></th>`).join('')}
+        <th></th>
+      </tr></thead>
+      <tbody>${bodyRows || `<tr><td colspan="${columns.length+1}" style="text-align:center;color:var(--ink-soft);">No rows yet — add one below.</td></tr>`}</tbody>
+    </table></div>
+    <div class="actions" style="margin-top:12px;">
+      <button class="btn secondary" id="customAddRowBtn">+ Add row</button>
+      <button class="btn secondary" id="customAddColBtn">+ Add column</button>
+    </div>
+  `;
+
+  wrap.querySelectorAll('td[contenteditable="true"]').forEach(td => {
+    td.addEventListener('blur', () => {
+      const tr = td.closest('tr');
+      updateCustomCell(ledger.id, tr.dataset.id, td.dataset.field, td.textContent.trim());
+    });
+    td.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); td.blur(); } });
+  });
+  wrap.querySelectorAll('[data-del-row]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (confirm('Delete this row?')) deleteCustomRow(ledger.id, btn.dataset.delRow);
+    });
+  });
+  wrap.querySelectorAll('th[data-col-rename]').forEach(th => {
+    th.addEventListener('click', (e) => {
+      if (e.target.closest('[data-col-del]')) return;
+      renameCustomColumn(ledger.id, th.dataset.colRename);
+    });
+  });
+  wrap.querySelectorAll('[data-col-del]').forEach(span => {
+    span.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteCustomColumn(ledger.id, span.dataset.colDel);
+    });
+  });
+  $('#customAddRowBtn').addEventListener('click', () => addCustomRow(ledger.id));
+  $('#customAddColBtn').addEventListener('click', () => addCustomColumn(ledger.id));
+}
+
 ['#searchInput'].forEach(sel => $(sel).addEventListener('input', renderLedgers));
 $('#statusFilter').addEventListener('change', renderLedgers);
 $('#ledgerFilter').addEventListener('change', renderLedgers);
@@ -1242,7 +1477,7 @@ $('#exportCsvBtn').addEventListener('click', () => {
   const columns = [];
   records.forEach(r => Object.keys(r.data).forEach(c => { if (!columns.includes(c)) columns.push(c); }));
   const sheetRows = records.map(r => ({
-    Status: r.released ? 'Released' : 'Non-Released',
+    Status: r.ledgerStyle === 'status' ? (r.released ? 'Released' : 'Non-Released') : '',
     Ledger: r.ledgerName,
     ...r.data
   }));

@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Case Ledger — Import &amp; Ledgers</title>
+<title>Financial Assistance Ledger</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:ital,wght@0,600;1,600;1,700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -20,82 +20,45 @@
     --rule:#C8CDBE;
     --ledger-red:#A6403A;
     --gold:#9A7B23;
-    --released:#2F6F4E;
-    --released-bg:#E4EFE8;
+    --settled:#2F6F4E;
+    --settled-bg:#E4EFE8;
     --pending:#A6403A;
     --pending-bg:#F5E7E5;
+    --header-yellow:#FFF200;
     --shadow: 0 1px 2px rgba(31,42,36,0.06), 0 6px 20px rgba(31,42,36,0.05);
   }
   *{box-sizing:border-box;}
-  body{
-    margin:0;
-    background:var(--paper);
-    color:var(--ink);
-    font-family:'Inter',sans-serif;
-    min-height:100vh;
-  }
-  .app{max-width:1180px;margin:0 auto;padding:28px 24px 80px;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;min-height:100vh;}
+  .app{max-width:1220px;margin:0 auto;padding:28px 24px 80px;}
 
-  /* ---- Header / stamp ---- */
-  header.top{
-    display:flex;justify-content:space-between;align-items:flex-end;
-    gap:24px;flex-wrap:wrap;
-    border-bottom:2px solid var(--ink);
-    padding-bottom:18px;margin-bottom:22px;
-  }
-  .brand-eyebrow{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;letter-spacing:.14em;text-transform:uppercase;
-    color:var(--gold);margin-bottom:6px;font-weight:600;
-  }
-  h1{
-    font-family:'Fraunces',serif;font-weight:600;font-size:34px;
-    margin:0;letter-spacing:-0.01em;
-  }
+  header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;
+    border-bottom:2px solid var(--ink);padding-bottom:18px;margin-bottom:22px;}
+  .brand-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--gold);margin-bottom:6px;font-weight:600;}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:34px;margin:0;letter-spacing:-0.01em;}
   .subtitle{color:var(--ink-soft);font-size:14px;margin-top:4px;}
   .stamp-row{display:flex;gap:10px;flex-wrap:wrap;}
-  .stamp{
-    font-family:'IBM Plex Mono',monospace;
-    border:1.5px solid var(--ink);
-    border-radius:3px;
-    padding:8px 14px;
-    text-align:center;
-    background:var(--paper-card);
-    min-width:92px;
-  }
-  .stamp .num{font-size:20px;font-weight:600;display:block;line-height:1.1;}
+  .stamp{font-family:'IBM Plex Mono',monospace;border:1.5px solid var(--ink);border-radius:3px;padding:8px 14px;
+    text-align:center;background:var(--paper-card);min-width:100px;}
+  .stamp .num{font-size:19px;font-weight:600;display:block;line-height:1.1;}
   .stamp .lbl{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);}
-  .stamp.released{border-color:var(--released);color:var(--released);}
+  .stamp.settled{border-color:var(--settled);color:var(--settled);}
   .stamp.pending{border-color:var(--pending);color:var(--pending);}
 
-  /* ---- Tabs ---- */
   nav.tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--rule);}
-  nav.tabs button{
-    font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;
-    background:none;border:none;cursor:pointer;color:var(--ink-soft);
-    padding:10px 4px;margin-right:22px;border-bottom:2.5px solid transparent;
-    letter-spacing:.01em;
-  }
+  nav.tabs button{font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;background:none;border:none;
+    cursor:pointer;color:var(--ink-soft);padding:10px 4px;margin-right:22px;border-bottom:2.5px solid transparent;letter-spacing:.01em;}
   nav.tabs button.active{color:var(--ink);border-bottom-color:var(--ledger-red);}
-  nav.tabs button .count{
-    font-family:'IBM Plex Mono',monospace;font-weight:400;color:var(--ink-soft);font-size:12px;
-  }
+  nav.tabs button .count{font-family:'IBM Plex Mono',monospace;font-weight:400;color:var(--ink-soft);font-size:12px;}
 
   .panel{display:none;}
   .panel.active{display:block;animation:fade .25s ease;}
   @keyframes fade{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:none;}}
 
-  .card{
-    background:var(--paper-card);border:1px solid var(--rule);border-radius:6px;
-    box-shadow:var(--shadow);
-  }
+  .card{background:var(--paper-card);border:1px solid var(--rule);border-radius:6px;box-shadow:var(--shadow);}
 
-  /* ---- Import panel ---- */
-  .dropzone{
-    padding:44px 24px;text-align:center;cursor:pointer;
-    border:2px dashed var(--rule);border-radius:8px;background:var(--paper-card);
-    transition:border-color .15s, background .15s;
-  }
+  .dropzone{padding:44px 24px;text-align:center;cursor:pointer;border:2px dashed var(--rule);border-radius:8px;
+    background:var(--paper-card);transition:border-color .15s, background .15s;}
   .dropzone:hover, .dropzone.drag{border-color:var(--gold);background:#F5F3EA;}
   .dropzone .glyph{font-size:30px;margin-bottom:10px;}
   .dropzone .main{font-weight:600;font-size:15px;}
@@ -105,64 +68,55 @@
   .mapping{padding:20px 22px;margin-top:18px;}
   .mapping h3{font-family:'Fraunces',serif;font-size:18px;margin:0 0 4px;font-weight:600;}
   .mapping .note{color:var(--ink-soft);font-size:13px;margin-bottom:16px;}
-  .field-row{display:grid;grid-template-columns:180px 1fr;gap:14px;align-items:center;margin-bottom:12px;}
-  .field-row label{font-size:13px;font-weight:600;color:var(--ink-soft);}
-  select, input[type=text]{
-    font-family:'Inter',sans-serif;font-size:13.5px;padding:8px 10px;
-    border:1px solid var(--rule);border-radius:5px;background:#fff;color:var(--ink);width:100%;
-  }
-  .preview-table{margin-top:18px;overflow:auto;max-height:220px;border:1px solid var(--rule);border-radius:6px;}
-  .btn{
-    font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;
-    padding:10px 18px;border-radius:5px;border:1.5px solid var(--ink);
-    background:var(--ink);color:var(--paper-card);cursor:pointer;
-  }
+  .field-row{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center;margin-bottom:10px;}
+  .field-row label{font-size:12.5px;font-weight:600;color:var(--ink-soft);}
+  .col-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;}
+  select, input[type=text]{font-family:'Inter',sans-serif;font-size:13.5px;padding:7px 9px;border:1px solid var(--rule);
+    border-radius:5px;background:#fff;color:var(--ink);width:100%;}
+  .btn{font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;padding:10px 18px;border-radius:5px;
+    border:1.5px solid var(--ink);background:var(--ink);color:var(--paper-card);cursor:pointer;}
   .btn.secondary{background:none;color:var(--ink);}
-  .btn.danger{border-color:var(--ledger-red);color:var(--ledger-red);background:none;}
+  .btn.small{padding:6px 12px;font-size:12px;}
   .btn:disabled{opacity:.4;cursor:not-allowed;}
   .actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
 
-  /* ---- Ledgers panel (card grid) ---- */
-  .ledger-grid{
-    display:grid;grid-template-columns:repeat(auto-fill, minmax(260px,1fr));
-    gap:14px;align-items:start;
-  }
-  .ledger-card{
-    background:var(--paper-card);border:1px solid var(--rule);border-radius:8px;
-    box-shadow:var(--shadow);overflow:hidden;transition:border-color .15s;
-  }
-  .ledger-card:hover{border-color:var(--gold);}
-  .ledger-card.expanded{grid-column:1 / -1;}
-  .lc-header{padding:14px 16px;cursor:pointer;}
-  .lc-toprow{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
-  .lc-style-tag{
-    font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.05em;
-    text-transform:uppercase;padding:2px 7px;border-radius:20px;
-  }
-  .lc-style-tag.financial{background:var(--released-bg);color:var(--released);}
-  .lc-style-tag.status{background:var(--pending-bg);color:var(--pending);}
-  .lc-name{font-weight:600;font-size:14.5px;margin-top:8px;}
-  .lc-meta{color:var(--ink-soft);font-size:12px;font-family:'IBM Plex Mono',monospace;margin-top:3px;}
-  .lc-counts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;}
-  .folder-toggle{display:flex;gap:6px;margin-top:10px;}
-  .folder-toggle .folder-btn{
-    font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:10.5px;
-    letter-spacing:.03em;text-transform:uppercase;
-    padding:5px 11px;border-radius:20px;border:1.5px solid var(--rule);
-    background:var(--paper-card);color:var(--ink-soft);cursor:pointer;
-  }
-  .folder-toggle .folder-btn:hover{border-color:var(--gold);}
-  .folder-toggle .folder-btn.active.no-folder{border-color:var(--pending);color:var(--pending);background:var(--pending-bg);}
-  .folder-toggle .folder-btn.active.with-folder{border-color:var(--released);color:var(--released);background:var(--released-bg);}
-  .pill{
-    font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 9px;border-radius:20px;
-  }
-  .pill.released{background:var(--released-bg);color:var(--released);}
+  .sheet-block{border:1px solid var(--rule);border-radius:6px;padding:16px 18px;margin-bottom:14px;background:#F9F9F4;}
+  .sheet-block .sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .sheet-block .sheet-head .tag{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);
+    background:#F0EEE3;padding:3px 9px;border-radius:20px;}
+  .sheet-block.skip{opacity:.5;}
+  .sheet-block .skip-toggle{font-size:12px;color:var(--ink-soft);cursor:pointer;user-select:none;}
+
+  /* ---- Ledgers panel ---- */
+  .ledger-item{padding:16px 20px;border-bottom:1px solid var(--rule);}
+  .ledger-item:last-child{border-bottom:none;}
+  .ledger-item .row-top{display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
+  .ledger-item .name{font-weight:600;font-size:14.5px;}
+  .ledger-item .meta{color:var(--ink-soft);font-size:12.5px;font-family:'IBM Plex Mono',monospace;margin-top:3px;}
+  .ledger-item .counts{display:flex;gap:8px;align-items:center;}
+  .pill{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 9px;border-radius:20px;}
+  .pill.settled{background:var(--settled-bg);color:var(--settled);}
   .pill.pending{background:var(--pending-bg);color:var(--pending);}
   .icon-btn{background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:16px;padding:4px 8px;}
   .icon-btn:hover{color:var(--ledger-red);}
   .empty{padding:50px 20px;text-align:center;color:var(--ink-soft);}
   .empty .glyph{font-size:26px;margin-bottom:8px;}
+  .ledger-detail{margin-top:16px;display:none;}
+  .ledger-detail.open{display:block;}
+
+  /* ---- The ledger table itself (matches the physical ledger book) ---- */
+  table.ledger-book{width:100%;border-collapse:collapse;font-size:13px;background:#fff;}
+  table.ledger-book th, table.ledger-book td{border:1px solid #444;padding:6px 9px;}
+  table.ledger-book thead th{
+    font-family:'Source Serif 4',serif;font-style:italic;font-weight:600;font-size:13px;
+    text-decoration:underline;text-align:center;background:#fff;
+  }
+  table.ledger-book td.num{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;white-space:nowrap;}
+  table.ledger-book td.date{color:#1a4f8f;font-family:'IBM Plex Mono',monospace;font-size:12px;white-space:nowrap;}
+  table.ledger-book td.checkno{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12px;}
+  table.ledger-book tr.section-row td{background:var(--header-yellow);font-weight:700;text-align:center;}
+  table.ledger-book tr.section-row td.spacer{background:#fff;}
+  .table-wrap{overflow:auto;max-height:560px;border:1px solid var(--rule);border-radius:6px;}
 
   /* ---- Masterlist panel ---- */
   .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;}
@@ -170,89 +124,26 @@
   .toolbar select{max-width:190px;}
   .toolbar .spacer{flex:1;}
   table.master{width:100%;border-collapse:collapse;font-size:13px;}
-  table.master thead th{
-    position:sticky;top:0;background:#F0EEE3;
-    text-align:left;padding:10px 12px;font-size:11px;letter-spacing:.05em;
-    text-transform:uppercase;color:var(--ink-soft);cursor:pointer;user-select:none;
-    border-bottom:2px solid var(--ink);white-space:nowrap;
-  }
+  table.master thead th{position:sticky;top:0;background:#F0EEE3;text-align:left;padding:10px 12px;font-size:11px;
+    letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);cursor:pointer;user-select:none;
+    border-bottom:2px solid var(--ink);white-space:nowrap;}
   table.master thead th:hover{color:var(--ink);}
   table.master thead th .arrow{margin-left:4px;color:var(--ledger-red);}
-  table.master tbody td{
-    padding:9px 12px;border-bottom:1px solid var(--rule);white-space:nowrap;
-    max-width:260px;overflow:hidden;text-overflow:ellipsis;
-  }
-  table.master tbody tr:hover{background:#F3F5EE;}
-  table.master tbody tr.ledger-margin td:first-child{border-left:3px solid var(--ledger-red);}
-  .status-tag{
-    font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:10.5px;
-    letter-spacing:.06em;padding:3px 8px;border-radius:3px;border:1px solid;
-    display:inline-block;transform:rotate(-1deg);
-  }
-  .status-tag.released{color:var(--released);border-color:var(--released);background:var(--released-bg);}
+  table.master tbody td{padding:9px 12px;border-bottom:1px solid var(--rule);white-space:nowrap;}
+  table.master tbody tr:hover{background:#F3F5EE;cursor:pointer;}
+  table.master td.num{text-align:right;font-family:'IBM Plex Mono',monospace;}
+  .status-tag{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:10.5px;letter-spacing:.06em;
+    padding:3px 8px;border-radius:3px;border:1px solid;display:inline-block;transform:rotate(-1deg);}
+  .status-tag.settled{color:var(--settled);border-color:var(--settled);background:var(--settled-bg);}
   .status-tag.pending{color:var(--pending);border-color:var(--pending);background:var(--pending-bg);}
-  .table-wrap{overflow:auto;max-height:560px;border:1px solid var(--rule);border-radius:6px;}
-
-  /* ---- Financial ledger (Debit/Credit/Balance) ---- */
-  .style-toggle{display:flex;gap:8px;margin-bottom:14px;}
-  .style-toggle button{
-    font-family:'Inter',sans-serif;font-weight:600;font-size:12.5px;
-    padding:8px 14px;border-radius:20px;border:1.5px solid var(--rule);
-    background:var(--paper-card);color:var(--ink-soft);cursor:pointer;
-  }
-  .style-toggle button.active{border-color:var(--ink);color:var(--ink);background:#F0EEE3;}
-  .fin-hint{color:var(--ink-soft);font-size:12px;margin-bottom:10px;}
-  table.finledger{
-    width:100%;border-collapse:collapse;font-size:13px;background:#fff;
-    font-family:'Inter',sans-serif;
-  }
-  table.finledger th, table.finledger td{
-    border:1px solid #444;padding:6px 10px;
-  }
-  table.finledger thead th{
-    font-family:'Fraunces',serif;font-style:italic;font-weight:700;font-size:13px;
-    text-align:left;background:#fff;text-transform:uppercase;letter-spacing:.02em;
-  }
-  table.finledger thead th.num{text-align:right;}
-  table.finledger tbody td{vertical-align:top;}
-  table.finledger tbody td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
-  table.finledger tbody tr.group-row td{
-    background:#FFF200;font-weight:700;text-align:center;cursor:text;
-  }
-  table.finledger tbody tr.group-row td[contenteditable="true"]:focus{
-    outline:2px solid var(--ledger-red);outline-offset:-2px;background:#fff9b0;
-  }
-  table.finledger tbody tr.blank-row td{height:22px;}
-  table.finledger tbody tr:hover:not(.group-row){background:#FAFAF5;}
-  table.finledger tbody td.row-actions, table.finledger thead th:last-child{
-    width:30px;text-align:center;padding:4px;
-  }
-  table.finledger tbody td.row-actions .icon-btn{padding:2px 4px;font-size:13px;opacity:.4;}
-  table.finledger tbody tr:hover td.row-actions .icon-btn{opacity:1;}
-  table.finledger tbody td[contenteditable="true"]:focus{
-    outline:2px solid var(--ledger-red);outline-offset:-2px;background:#FBFCF9;
-  }
-  .fin-add-group{
-    font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-soft);
-    background:none;border:1px dashed var(--rule);border-radius:4px;padding:2px 8px;cursor:pointer;
-  }
-  .fin-summary{display:flex;gap:18px;margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--ink-soft);}
-  .fin-summary b{color:var(--ink);}
-
-  .ledger-detail{padding:0 16px 16px;border-top:1px solid var(--rule);}
-  .ledger-detail .toolbar{margin:14px 0 10px;}
   .result-count{color:var(--ink-soft);font-size:12.5px;margin-bottom:8px;font-family:'IBM Plex Mono',monospace;}
   footer.note{margin-top:26px;color:var(--ink-soft);font-size:12px;line-height:1.6;border-top:1px solid var(--rule);padding-top:14px;}
   code{background:#F0EEE3;padding:1px 5px;border-radius:3px;font-family:'IBM Plex Mono',monospace;}
 
   /* ---- Auth gate ---- */
-  #authScreen{
-    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
-  }
-  .auth-card{
-    background:var(--paper-card);border:1px solid var(--rule);border-radius:8px;
-    box-shadow:var(--shadow);padding:32px 30px;width:100%;max-width:380px;
-  }
+  #authScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .auth-card{background:var(--paper-card);border:1px solid var(--rule);border-radius:8px;box-shadow:var(--shadow);
+    padding:32px 30px;width:100%;max-width:380px;}
   .auth-card .brand-eyebrow{margin-bottom:6px;}
   .auth-card h1{font-size:24px;margin-bottom:4px;}
   .auth-card .subtitle{margin-bottom:22px;}
@@ -262,20 +153,12 @@
   .auth-toggle{text-align:center;margin-top:14px;font-size:12.5px;color:var(--ink-soft);}
   .auth-toggle a{color:var(--ledger-red);cursor:pointer;font-weight:600;text-decoration:none;}
   .auth-error{color:var(--pending);font-size:12.5px;margin-top:10px;display:none;}
-  .setup-notice{
-    background:var(--pending-bg);border:1px solid var(--pending);color:var(--pending);
-    border-radius:6px;padding:14px 16px;font-size:12.5px;line-height:1.6;margin-bottom:18px;
-  }
+  .auth-info{color:var(--settled);font-size:12.5px;margin-top:10px;display:none;}
+  .setup-notice{background:var(--pending-bg);border:1px solid var(--pending);color:var(--pending);border-radius:6px;
+    padding:14px 16px;font-size:12.5px;line-height:1.6;margin-bottom:18px;}
   .setup-notice code{background:rgba(255,255,255,.5);}
-  #signOutBtn{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 12px;}
   .header-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
   .user-line{font-size:11.5px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
-  .data-error-banner{
-    background:var(--pending-bg);border:1px solid var(--pending);color:var(--pending);
-    border-radius:6px;padding:14px 16px;font-size:13px;line-height:1.6;margin-bottom:18px;
-  }
-  .data-error-banner strong{display:block;margin-bottom:4px;font-size:14px;}
-  .data-error-banner code{background:rgba(255,255,255,.5);}
 </style>
 </head>
 <body>
@@ -283,8 +166,8 @@
 <!-- AUTH GATE -->
 <div id="authScreen">
   <div class="auth-card">
-    <div class="brand-eyebrow">Register of Cases</div>
-    <h1>Case Ledger</h1>
+    <div class="brand-eyebrow">Register of Accounts</div>
+    <h1>Financial Assistance Ledger</h1>
     <div class="subtitle">Sign in to access the office ledger</div>
 
     <div class="setup-notice" id="setupNotice" style="display:none;">
@@ -304,20 +187,20 @@
       </div>
       <button class="btn" id="authSubmitBtn">Sign in</button>
       <div class="auth-error" id="authError"></div>
-      <div class="auth-toggle" id="authToggle">No account yet? <a id="toggleModeLink">Create one</a></div>
+      <div class="auth-info" id="authInfo"></div>
+      <div class="auth-toggle" id="forgotToggle"><a id="forgotLink">Forgot password?</a></div>
+      <div class="auth-toggle" id="authToggle">No account yet? <a>Create one</a></div>
     </div>
   </div>
 </div>
 
 <div class="app" id="mainApp" style="display:none;">
 
-  <div class="data-error-banner" id="dataErrorBanner" style="display:none;"></div>
-
   <header class="top">
     <div>
-      <div class="brand-eyebrow">Register of Cases</div>
-      <h1>Case Ledger</h1>
-      <div class="subtitle">Import spreadsheets → auto-sorted into Released / Non‑Released ledgers</div>
+      <div class="brand-eyebrow">Register of Accounts</div>
+      <h1>Financial Assistance Ledger</h1>
+      <div class="subtitle">Import spreadsheets → running balance per beneficiary → settled / pending masterlist</div>
     </div>
     <div class="header-right">
       <div class="user-line" id="userLine"></div>
@@ -329,6 +212,7 @@
   <nav class="tabs">
     <button data-tab="import" class="active">Import</button>
     <button data-tab="ledgers">Ledgers <span class="count" id="ledgerCountTab"></span></button>
+    <button data-tab="masterlist">Masterlist <span class="count" id="masterCountTab"></span></button>
   </nav>
 
   <!-- IMPORT -->
@@ -336,85 +220,16 @@
     <div class="dropzone" id="dropzone">
       <div class="glyph">📄</div>
       <div class="main">Drop an Excel file here, or click to browse</div>
-      <div class="sub">.xlsx / .xls / .csv — each import becomes its own ledger entry</div>
+      <div class="sub">.xlsx / .xls / .csv — every sheet becomes its own ledger (one per beneficiary)</div>
       <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
     </div>
 
     <div class="card mapping" id="mappingCard" style="display:none;">
-      <h3 id="mapTitle">Confirm columns</h3>
-      <div class="note">The system found these columns. Confirm which one marks a case as released, and which one identifies it.</div>
-
-      <div class="field-row" id="sheetPickerRow" style="display:none;">
-        <label>Sheet</label>
-        <select id="sheetSelect"></select>
-      </div>
-      <div class="field-row" id="allSheetsRow" style="display:none;">
-        <label>&nbsp;</label>
-        <label style="display:flex;align-items:center;gap:8px;font-weight:500;color:var(--ink);">
-          <input type="checkbox" id="allSheetsChk" style="width:auto;">
-          Import every sheet in this file (one ledger per sheet)
-        </label>
-      </div>
-
-      <div class="field-row">
-        <label>Ledger style</label>
-        <div class="style-toggle">
-          <button type="button" id="styleStatusBtn" class="active">Case Status</button>
-          <button type="button" id="styleFinancialBtn">Financial Ledger</button>
-        </div>
-      </div>
-
-      <div id="statusFields">
-        <div class="field-row">
-          <label>Date Released column</label>
-          <select id="releaseColSelect"></select>
-        </div>
-        <div class="field-row">
-          <label>Identifier column</label>
-          <select id="nameColSelect"></select>
-        </div>
-      </div>
-
-      <div id="financialFields" style="display:none;">
-        <div class="field-row">
-          <label>Date column</label>
-          <select id="dateColSelect"></select>
-        </div>
-        <div class="field-row">
-          <label>Check No. column</label>
-          <select id="checkColSelect"></select>
-        </div>
-        <div class="field-row">
-          <label>Particulars column</label>
-          <select id="particularsColSelect"></select>
-        </div>
-        <div class="field-row">
-          <label>Debit column</label>
-          <select id="debitColSelect"></select>
-        </div>
-        <div class="field-row">
-          <label>Credit column</label>
-          <select id="creditColSelect"></select>
-        </div>
-        <div class="field-row">
-          <label>Remarks column</label>
-          <select id="remarksColSelect"></select>
-        </div>
-        <div class="field-row">
-          <label>Group / Section column</label>
-          <select id="groupColSelect"></select>
-        </div>
-      </div>
-
-      <div class="field-row">
-        <label>Ledger name</label>
-        <input type="text" id="ledgerNameInput" placeholder="e.g. July 2026 OEC Applications">
-      </div>
-
-      <div class="preview-table"><table class="master" id="previewTable"></table></div>
-
+      <h3>Confirm columns</h3>
+      <div class="note">Each sheet becomes a ledger. Balance is always recalculated automatically as a running Debit − Credit — it isn't read from the file.</div>
+      <div id="sheetBlocks"></div>
       <div class="actions">
-        <button class="btn" id="createLedgerBtn">Create ledger</button>
+        <button class="btn" id="createLedgerBtn">Create ledgers</button>
         <button class="btn secondary" id="cancelImportBtn">Cancel</button>
       </div>
     </div>
@@ -422,38 +237,46 @@
 
   <!-- LEDGERS -->
   <section class="panel" id="panel-ledgers">
+    <div class="card" id="ledgerList"></div>
+  </section>
+
+  <!-- MASTERLIST -->
+  <section class="panel" id="panel-masterlist">
     <div class="toolbar">
-      <input type="text" id="ledgerSearchInput" placeholder="Search ledgers…">
+      <input type="text" id="searchInput" placeholder="Search beneficiary…">
+      <select id="statusFilter">
+        <option value="all">All statuses</option>
+        <option value="pending">Pending balance only</option>
+        <option value="settled">Fully settled only</option>
+      </select>
       <div class="spacer"></div>
       <button class="btn secondary" id="exportCsvBtn">Export CSV</button>
       <button class="btn secondary" id="exportJsonBtn">Backup (JSON)</button>
       <button class="btn secondary" id="importJsonBtn">Restore backup</button>
       <input type="file" id="jsonFileInput" accept=".json" style="display:none;">
-      <button class="btn danger" id="deleteAllLedgersBtn">Delete all ledgers</button>
     </div>
-    <div class="result-count" id="ledgerResultCount"></div>
-    <div id="ledgerList"></div>
+    <div class="result-count" id="resultCount"></div>
+    <div class="table-wrap"><table class="master" id="masterTable"></table></div>
   </section>
 
   <footer class="note">
-    Status is auto‑derived per row: any non‑empty value in the mapped <em>Date Released</em> column marks a case <strong>Released</strong>; a blank value marks it <strong>Non‑Released</strong>.
-    Ledgers are stored in Firestore and sync in real time to every signed‑in user. <em>Backup (JSON)</em> / <em>Restore backup</em> are still there as an extra manual export, e.g. for archiving a snapshot outside Firebase.
+    Balance is computed automatically: running (total Debit − total Credit) at each entry. Yellow section rows (e.g. "2ND YEAR COLLEGE") are group labels and carry no amounts.
+    Ledgers sync in real time through Firestore to every signed-in user. <em>Backup (JSON)</em> / <em>Restore backup</em> are available as an extra manual export.
   </footer>
 </div>
 
 <script>
 /* ============================================================
-   FIREBASE CONFIG — fill these in from
-   Firebase console → Project settings → General → Your apps
+   FIREBASE CONFIG
    ============================================================ */
 const firebaseConfig = {
   apiKey: "AIzaSyCFnlI69QVE2lb6Mo8rofTPDeCv3F79840",
-    authDomain: "ease-26a55.firebaseapp.com",
-    projectId: "ease-26a55",
-    storageBucket: "ease-26a55.firebasestorage.app",
-    messagingSenderId: "441919411358",
-    appId: "1:441919411358:web:6dd3d3b2750af84e01978f",
-    measurementId: "G-Y3HKTDTXY9"
+  authDomain: "ease-26a55.firebaseapp.com",
+  projectId: "ease-26a55",
+  storageBucket: "ease-26a55.firebasestorage.app",
+  messagingSenderId: "441919411358",
+  appId: "1:441919411358:web:6dd3d3b2750af84e01978f",
+  measurementId: "G-Y3HKTDTXY9"
 };
 const CONFIG_IS_SET = firebaseConfig.apiKey !== "YOUR_API_KEY";
 
@@ -467,9 +290,9 @@ if (CONFIG_IS_SET){
 
 /* ============================================================
    STORAGE LAYER — Firestore, collection "ledgers".
-   One document per ledger: {name, fileName, sheetName, importedAt,
-   releaseCol, nameCol, columns[], rows[]}. Real-time synced across
-   every signed-in user via onSnapshot.
+   One document per ledger (beneficiary): {name, fileName, sheetName,
+   importedAt, columnsMap:{...}, entries:[{type:'header',label} |
+   {type:'row', date, checkNo, particulars, debit, credit, remarks}]}
    ============================================================ */
 const Store = {
   ledgers: [],
@@ -479,12 +302,10 @@ const Store = {
     this._unsub = db.collection('ledgers').orderBy('importedAt','desc')
       .onSnapshot(snap => {
         this.ledgers = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-        const banner = $('#dataErrorBanner');
-        if (banner) banner.style.display = 'none';
         onChange();
       }, err => {
         console.error(err);
-        showDataError(err);
+        alert('Could not load ledgers from Firestore: ' + err.message);
       });
   },
   async addLedger(ledger){
@@ -494,29 +315,15 @@ const Store = {
   async removeLedger(id){
     await db.collection('ledgers').doc(id).delete();
   },
-  async removeAllLedgers(){
-    const batch = db.batch();
-    this.ledgers.forEach(l => batch.delete(db.collection('ledgers').doc(l.id)));
-    await batch.commit();
-  },
   all(){ return this.ledgers; }
 };
 
 /* ============================================================
    STATE
    ============================================================ */
-let pendingImport = null; // {columns, sheetRows, workbook, sheetNames}
-let importStyle = 'status'; // 'status' | 'financial'
-
-// Per-ledger UI state for the expandable cards on the Ledgers tab
-const ledgerUI = {};
-function getLedgerUI(id){
-  if (!ledgerUI[id]) ledgerUI[id] = { expanded:false, search:'', status:'all', sort:{col:null, dir:1} };
-  return ledgerUI[id];
-}
-function escapeAttr(s){
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-}
+let pendingImport = null; // {fileName, sheets:[{sheetName, rawRows, columns, colMap, ledgerName}]}
+let sort = { col: null, dir: 1 };
+let openLedgerId = null;
 
 /* ============================================================
    HELPERS
@@ -525,69 +332,30 @@ const $ = sel => document.querySelector(sel);
 const $$ = sel => Array.from(document.querySelectorAll(sel));
 const uid = () => Math.random().toString(36).slice(2,10);
 
-function guessReleaseCol(cols){
-  return cols.find(c => /release/i.test(c)) || cols.find(c => /date/i.test(c)) || cols[0];
+function guessCol(cols, patterns){
+  for (const p of patterns){
+    const hit = cols.find(c => p.test(c));
+    if (hit) return hit;
+  }
+  return '';
 }
-function guessNameCol(cols){
-  return cols.find(c => /^name$/i.test(c)) ||
-         cols.find(c => /name/i.test(c) && !/file ?name/i.test(c)) ||
-         cols[0];
+function parseAmount(val){
+  if (val === null || val === undefined || val === '') return null;
+  if (typeof val === 'number') return val;
+  const cleaned = String(val).replace(/[^0-9.\-]/g,'');
+  if (!cleaned) return null;
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? null : n;
 }
-function guessDateCol(cols){
-  return cols.find(c => /^date$/i.test(c)) || cols.find(c => /date/i.test(c)) || cols[0];
-}
-function guessCheckCol(cols){
-  return cols.find(c => /check/i.test(c)) || cols.find(c => /\bo\.?r\.?\s*no/i.test(c)) || cols[0];
-}
-function guessParticularsCol(cols){
-  return cols.find(c => /particular/i.test(c)) || cols.find(c => /description/i.test(c)) || cols[0];
-}
-function guessDebitCol(cols){
-  return cols.find(c => /debit/i.test(c)) || cols[0];
-}
-function guessCreditCol(cols){
-  return cols.find(c => /credit/i.test(c)) || cols[0];
-}
-function guessRemarksCol(cols){
-  return cols.find(c => /remark/i.test(c)) || '__none__';
-}
-function guessGroupCol(cols){
-  return cols.find(c => /group|section|year ?level|category/i.test(c)) || '__none__';
-}
-function fmtMoney(v){
-  const n = parseFloat(v);
-  if (isNaN(n) || v === '' || v === null || v === undefined) return '';
-  return n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-}
-function fmtLedgerDate(v){
-  if (v === '' || v === null || v === undefined) return '';
-  const d = v instanceof Date ? v : new Date(v);
-  if (isNaN(d.getTime())) return String(v);
-  return d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}).replace(',', '.');
-}
-function isReleased(val){
-  if (val === null || val === undefined) return false;
-  const s = String(val).trim();
-  return s.length > 0 && s.toLowerCase() !== 'n/a' && s !== '-';
+function fmtMoney(n){
+  if (n === null || n === undefined) return '';
+  return n.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 function fmtDate(d){
-  return new Date(d).toLocaleDateString('en-PH', {year:'numeric', month:'short', day:'numeric'});
-}
-
-function showDataError(err){
-  const banner = $('#dataErrorBanner');
-  if (!banner) return;
-  if (err && (err.code === 'permission-denied' || /insufficient permissions/i.test(err.message || ''))){
-    banner.innerHTML = `<strong>Could not load ledgers — Firestore is blocking access.</strong>
-      This means the Firestore Security Rules for this project (not this app's code) are denying reads/writes,
-      most often because a "test mode" rule expired. In the
-      <a href="https://console.firebase.google.com/" target="_blank" rel="noopener">Firebase Console</a> →
-      your project → <strong>Firestore Database → Rules</strong>, make sure signed-in users are allowed access, e.g.:
-      <br><code>allow read, write: if request.auth != null;</code> for the <code>/ledgers/{ledgerId}</code> path, then Publish and reload.`;
-  } else {
-    banner.innerHTML = `<strong>Could not load ledgers from Firestore.</strong> ${err && err.message ? err.message : 'Unknown error.'}`;
-  }
-  banner.style.display = 'block';
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt)) return String(d);
+  return dt.toLocaleDateString('en-PH', {year:'numeric', month:'short', day:'numeric'});
 }
 
 /* ============================================================
@@ -600,11 +368,12 @@ $$('nav.tabs button').forEach(btn => {
     btn.classList.add('active');
     $('#panel-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'ledgers') renderLedgers();
+    if (btn.dataset.tab === 'masterlist') renderMasterlist();
   });
 });
 
 /* ============================================================
-   IMPORT FLOW
+   IMPORT FLOW — every sheet becomes its own ledger
    ============================================================ */
 const dropzone = $('#dropzone');
 const fileInput = $('#fileInput');
@@ -619,677 +388,353 @@ function handleFile(file){
   reader.onload = e => {
     const data = new Uint8Array(e.target.result);
     const workbook = XLSX.read(data, {type:'array', cellDates:true});
-    pendingImport = { workbook, fileName: file.name };
-    $('#styleStatusBtn').click();
-    const sheetPickerRow = $('#sheetPickerRow');
-    const allSheetsRow = $('#allSheetsRow');
-    const allSheetsChk = $('#allSheetsChk');
-    const sheetSelect = $('#sheetSelect');
-    sheetSelect.innerHTML = '';
-    workbook.SheetNames.forEach(n => {
-      const o = document.createElement('option'); o.value = n; o.textContent = n; sheetSelect.appendChild(o);
+    pendingImport = { fileName: file.name, sheets: [] };
+
+    workbook.SheetNames.forEach(sheetName => {
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      if (!rows.length) return;
+      const columns = Object.keys(rows[0]);
+      pendingImport.sheets.push({
+        sheetName,
+        rawRows: rows,
+        columns,
+        colMap: {
+          date: guessCol(columns, [/^date$/i, /date/i]),
+          checkNo: guessCol(columns, [/check ?no/i, /check/i]),
+          particulars: guessCol(columns, [/particular/i]),
+          debit: guessCol(columns, [/debit/i]),
+          credit: guessCol(columns, [/credit/i]),
+          remarks: guessCol(columns, [/remark/i])
+        },
+        ledgerName: workbook.SheetNames.length > 1
+          ? sheetName
+          : file.name.replace(/\.(xlsx|xls|csv)$/i,'')
+      });
     });
-    const multiSheet = workbook.SheetNames.length > 1;
-    sheetPickerRow.style.display = multiSheet ? 'grid' : 'none';
-    allSheetsRow.style.display = multiSheet ? 'grid' : 'none';
-    allSheetsChk.checked = false;
-    $('#createLedgerBtn').textContent = 'Create ledger';
-    allSheetsChk.onchange = () => {
-      sheetSelect.disabled = allSheetsChk.checked;
-      $('#createLedgerBtn').textContent = allSheetsChk.checked ? `Create ${workbook.SheetNames.length} ledgers` : 'Create ledger';
-    };
-    sheetSelect.disabled = false;
-    sheetSelect.onchange = () => loadSheet(sheetSelect.value);
-    loadSheet(workbook.SheetNames[0]);
-    $('#ledgerNameInput').value = file.name.replace(/\.(xlsx|xls|csv)$/i,'');
+
+    if (!pendingImport.sheets.length){
+      alert('No sheets with data rows were found in that file.');
+      pendingImport = null;
+      return;
+    }
+    renderSheetBlocks();
     $('#mappingCard').style.display = 'block';
     $('#mappingCard').scrollIntoView({behavior:'smooth', block:'nearest'});
   };
   reader.readAsArrayBuffer(file);
 }
 
-function loadSheet(sheetName){
-  const sheet = pendingImport.workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
-  if (!rows.length){
-    alert('That sheet has no data rows.');
-    return;
-  }
-  const columns = Object.keys(rows[0]);
-  pendingImport.sheetName = sheetName;
-  pendingImport.rows = rows;
-  pendingImport.columns = columns;
-
-  const releaseSel = $('#releaseColSelect');
-  const nameSel = $('#nameColSelect');
-  releaseSel.innerHTML = ''; nameSel.innerHTML = '';
-  columns.forEach(c => {
-    releaseSel.appendChild(new Option(c, c));
-    nameSel.appendChild(new Option(c, c));
-  });
-  releaseSel.value = guessReleaseCol(columns);
-  nameSel.value = guessNameCol(columns);
-
-  const dateSel = $('#dateColSelect'), checkSel = $('#checkColSelect'),
-        partSel = $('#particularsColSelect'), debitSel = $('#debitColSelect'),
-        creditSel = $('#creditColSelect'), remarksSel = $('#remarksColSelect'),
-        groupSel = $('#groupColSelect');
-  [dateSel, checkSel, partSel, debitSel, creditSel].forEach(sel => sel.innerHTML = '');
-  [remarksSel, groupSel].forEach(sel => sel.innerHTML = '<option value="__none__">— None —</option>');
-  columns.forEach(c => {
-    [dateSel, checkSel, partSel, debitSel, creditSel, remarksSel, groupSel].forEach(sel => sel.appendChild(new Option(c, c)));
-  });
-  dateSel.value = guessDateCol(columns);
-  checkSel.value = guessCheckCol(columns);
-  partSel.value = guessParticularsCol(columns);
-  debitSel.value = guessDebitCol(columns);
-  creditSel.value = guessCreditCol(columns);
-  remarksSel.value = guessRemarksCol(columns);
-  groupSel.value = guessGroupCol(columns);
-
-  renderPreview(columns, rows.slice(0,5));
+function colOptions(columns, selected){
+  return `<option value="">— none —</option>` + columns.map(c =>
+    `<option value="${c}" ${c===selected?'selected':''}>${c}</option>`).join('');
 }
 
-$('#styleStatusBtn').addEventListener('click', () => {
-  importStyle = 'status';
-  $('#styleStatusBtn').classList.add('active');
-  $('#styleFinancialBtn').classList.remove('active');
-  $('#statusFields').style.display = 'block';
-  $('#financialFields').style.display = 'none';
-});
-$('#styleFinancialBtn').addEventListener('click', () => {
-  importStyle = 'financial';
-  $('#styleFinancialBtn').classList.add('active');
-  $('#styleStatusBtn').classList.remove('active');
-  $('#financialFields').style.display = 'block';
-  $('#statusFields').style.display = 'none';
-});
+function renderSheetBlocks(){
+  const wrap = $('#sheetBlocks');
+  wrap.innerHTML = pendingImport.sheets.map((s, i) => `
+    <div class="sheet-block" data-idx="${i}">
+      <div class="sheet-head">
+        <span class="tag">${s.rawRows.length} rows</span>
+        <label class="skip-toggle"><input type="checkbox" class="skip-check" checked> Import this sheet</label>
+      </div>
+      <div class="field-row">
+        <label>Ledger name</label>
+        <input type="text" class="ledger-name-input" value="${s.ledgerName}">
+      </div>
+      <div class="col-grid">
+        <div class="field-row"><label>Date</label><select data-field="date">${colOptions(s.columns, s.colMap.date)}</select></div>
+        <div class="field-row"><label>Check No.</label><select data-field="checkNo">${colOptions(s.columns, s.colMap.checkNo)}</select></div>
+        <div class="field-row"><label>Particulars</label><select data-field="particulars">${colOptions(s.columns, s.colMap.particulars)}</select></div>
+        <div class="field-row"><label>Debit</label><select data-field="debit">${colOptions(s.columns, s.colMap.debit)}</select></div>
+        <div class="field-row"><label>Credit</label><select data-field="credit">${colOptions(s.columns, s.colMap.credit)}</select></div>
+        <div class="field-row"><label>Remarks</label><select data-field="remarks">${colOptions(s.columns, s.colMap.remarks)}</select></div>
+      </div>
+    </div>
+  `).join('');
 
-function renderPreview(columns, rows){
-  const table = $('#previewTable');
-  table.innerHTML = `<thead><tr>${columns.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(r => `<tr>${columns.map(c=>`<td>${r[c] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody>`;
+  wrap.querySelectorAll('.sheet-block').forEach(block => {
+    const idx = Number(block.dataset.idx);
+    block.querySelector('.skip-check').addEventListener('change', e => {
+      block.classList.toggle('skip', !e.target.checked);
+    });
+    block.querySelector('.ledger-name-input').addEventListener('input', e => {
+      pendingImport.sheets[idx].ledgerName = e.target.value;
+    });
+    block.querySelectorAll('select[data-field]').forEach(sel => {
+      sel.addEventListener('change', e => {
+        pendingImport.sheets[idx].colMap[e.target.dataset.field] = e.target.value;
+      });
+    });
+  });
+}
+
+function buildEntries(sheet){
+  const { rawRows, colMap } = sheet;
+  const entries = [];
+  rawRows.forEach(r => {
+    const dateVal = colMap.date ? r[colMap.date] : '';
+    const checkVal = colMap.checkNo ? r[colMap.checkNo] : '';
+    const particularsVal = colMap.particulars ? r[colMap.particulars] : '';
+    const debitVal = colMap.debit ? parseAmount(r[colMap.debit]) : null;
+    const creditVal = colMap.credit ? parseAmount(r[colMap.credit]) : null;
+    const remarksVal = colMap.remarks ? r[colMap.remarks] : '';
+
+    const isBlank = v => v === '' || v === null || v === undefined;
+    const rowIsEmpty = isBlank(dateVal) && isBlank(checkVal) && isBlank(particularsVal) && debitVal===null && creditVal===null && isBlank(remarksVal);
+    if (rowIsEmpty) return;
+
+    const looksLikeHeader = isBlank(dateVal) && isBlank(checkVal) && debitVal===null && creditVal===null && !isBlank(particularsVal);
+    if (looksLikeHeader){
+      entries.push({ type:'header', label: String(particularsVal) });
+    } else {
+      entries.push({
+        type:'row',
+        date: dateVal instanceof Date ? dateVal.toISOString() : String(dateVal || ''),
+        checkNo: String(checkVal || ''),
+        particulars: String(particularsVal || ''),
+        debit: debitVal,
+        credit: creditVal,
+        remarks: String(remarksVal || '')
+      });
+    }
+  });
+  return entries;
 }
 
 $('#cancelImportBtn').addEventListener('click', () => {
   pendingImport = null;
   $('#mappingCard').style.display = 'none';
   fileInput.value = '';
-  if ($('#allSheetsChk')) $('#allSheetsChk').checked = false;
 });
-
-function resolveCol(preferred, columns, guessFn){
-  if (preferred && preferred !== '__none__' && columns.includes(preferred)) return preferred;
-  return guessFn(columns);
-}
-
-function buildFinancialRows(sheetRows, columns, mapping){
-  const dateCol = resolveCol(mapping.dateCol, columns, guessDateCol);
-  const checkCol = resolveCol(mapping.checkCol, columns, guessCheckCol);
-  const particularsCol = resolveCol(mapping.particularsCol, columns, guessParticularsCol);
-  const debitCol = resolveCol(mapping.debitCol, columns, guessDebitCol);
-  const creditCol = resolveCol(mapping.creditCol, columns, guessCreditCol);
-  const remarksCol = (mapping.remarksCol !== '__none__' && columns.includes(mapping.remarksCol)) ? mapping.remarksCol : guessRemarksCol(columns);
-  const groupCol = (mapping.groupCol !== '__none__' && columns.includes(mapping.groupCol)) ? mapping.groupCol : guessGroupCol(columns);
-  const rows = sheetRows.map(r => {
-    const groupVal = groupCol !== '__none__' ? String(r[groupCol] ?? '').trim() : '';
-    return {
-      id: uid(),
-      data: r,
-      isGroupRow: !!groupVal,
-      group: groupVal,
-      date: r[dateCol] instanceof Date ? r[dateCol].toISOString() : (r[dateCol] ?? ''),
-      checkNo: r[checkCol] ?? '',
-      particulars: r[particularsCol] ?? '',
-      debit: r[debitCol] ?? '',
-      credit: r[creditCol] ?? '',
-      remarks: remarksCol !== '__none__' ? (r[remarksCol] ?? '') : ''
-    };
-  });
-  return { rows, dateCol, checkCol, particularsCol, debitCol, creditCol, remarksCol, groupCol };
-}
-
-function buildStatusRows(sheetRows, columns, mapping){
-  const releaseCol = resolveCol(mapping.releaseCol, columns, guessReleaseCol);
-  const nameCol = resolveCol(mapping.nameCol, columns, guessNameCol);
-  const rows = sheetRows.map(r => ({ id: uid(), data: r, released: isReleased(r[releaseCol]) }));
-  return { rows, releaseCol, nameCol };
-}
 
 $('#createLedgerBtn').addEventListener('click', async () => {
   if (!pendingImport) return;
-  const baseName = $('#ledgerNameInput').value.trim() || pendingImport.fileName.replace(/\.(xlsx|xls|csv)$/i,'');
-  const allSheetsChk = $('#allSheetsChk');
-  const importAll = !!(allSheetsChk && allSheetsChk.checked);
-  const sheetNames = importAll ? pendingImport.workbook.SheetNames : [pendingImport.sheetName];
-
-  const mapping = importStyle === 'financial' ? {
-    dateCol: $('#dateColSelect').value, checkCol: $('#checkColSelect').value,
-    particularsCol: $('#particularsColSelect').value, debitCol: $('#debitColSelect').value,
-    creditCol: $('#creditColSelect').value, remarksCol: $('#remarksColSelect').value,
-    groupCol: $('#groupColSelect').value
-  } : {
-    releaseCol: $('#releaseColSelect').value, nameCol: $('#nameColSelect').value
-  };
+  const blocks = $$('#sheetBlocks .sheet-block');
+  const toImport = pendingImport.sheets.filter((s, i) => blocks[i].querySelector('.skip-check').checked);
+  if (!toImport.length){
+    alert('Select at least one sheet to import.');
+    return;
+  }
 
   const btn = $('#createLedgerBtn');
-  const btnLabelDefault = btn.textContent;
-  btn.disabled = true;
-
+  btn.disabled = true; btn.textContent = `Saving ${toImport.length} ledger(s)…`;
   try {
-    const ledgersToCreate = [];
-    for (const sheetName of sheetNames){
-      const sheet = pendingImport.workbook.Sheets[sheetName];
-      const sheetRows = XLSX.utils.sheet_to_json(sheet, {defval:''});
-      if (!sheetRows.length) continue;
-      const columns = Object.keys(sheetRows[0]);
-      const ledgerName = sheetNames.length > 1 ? `${baseName} — ${sheetName}` : baseName;
-
-      if (importStyle === 'financial'){
-        const built = buildFinancialRows(sheetRows, columns, mapping);
-        ledgersToCreate.push({
-          id: uid(), name: ledgerName, style: 'financial',
-          fileName: pendingImport.fileName, sheetName,
-          importedAt: new Date().toISOString(),
-          dateCol: built.dateCol, checkCol: built.checkCol, particularsCol: built.particularsCol,
-          debitCol: built.debitCol, creditCol: built.creditCol, remarksCol: built.remarksCol, groupCol: built.groupCol,
-          columns, rows: built.rows
-        });
-      } else {
-        const built = buildStatusRows(sheetRows, columns, mapping);
-        ledgersToCreate.push({
-          id: uid(), name: ledgerName, style: 'status',
-          fileName: pendingImport.fileName, sheetName,
-          importedAt: new Date().toISOString(),
-          releaseCol: built.releaseCol, nameCol: built.nameCol,
-          columns, rows: built.rows
-        });
-      }
+    for (const s of toImport){
+      const ledger = {
+        id: uid(),
+        name: s.ledgerName.trim() || s.sheetName,
+        fileName: pendingImport.fileName,
+        sheetName: s.sheetName,
+        importedAt: new Date().toISOString(),
+        columnsMap: s.colMap,
+        entries: buildEntries(s)
+      };
+      await Store.addLedger(ledger);
     }
-
-    if (!ledgersToCreate.length){
-      alert('No data rows found to import.');
-      return;
-    }
-
-    for (let i = 0; i < ledgersToCreate.length; i++){
-      btn.textContent = ledgersToCreate.length > 1 ? `Saving ${i+1} of ${ledgersToCreate.length}…` : 'Saving…';
-      await Store.addLedger(ledgersToCreate[i]);
-    }
-
     pendingImport = null;
     $('#mappingCard').style.display = 'none';
     fileInput.value = '';
     document.querySelector('nav.tabs button[data-tab="ledgers"]').click();
   } catch(err){
-    alert('Could not save to Firestore: ' + err.message);
+    alert('Could not save one or more ledgers to Firestore: ' + err.message);
   } finally {
-    btn.disabled = false; btn.textContent = btnLabelDefault;
+    btn.disabled = false; btn.textContent = 'Create ledgers';
   }
 });
 
 /* ============================================================
+   LEDGER MATH — running balance, totals, status
+   ============================================================ */
+function computeLedgerRows(ledger){
+  let runDebit = 0, runCredit = 0;
+  return (ledger.entries || []).map(e => {
+    if (e.type === 'header') return e;
+    if (e.debit !== null) runDebit += e.debit;
+    if (e.credit !== null) runCredit += e.credit;
+    return { ...e, balance: runDebit - runCredit };
+  });
+}
+function ledgerTotals(ledger){
+  let debit = 0, credit = 0, lastDate = null;
+  (ledger.entries || []).forEach(e => {
+    if (e.type !== 'row') return;
+    if (e.debit !== null) debit += e.debit;
+    if (e.credit !== null) credit += e.credit;
+    if (e.date) lastDate = e.date;
+  });
+  const balance = debit - credit;
+  return { debit, credit, balance, lastDate, status: balance > 0.004 ? 'pending' : 'settled' };
+}
+
+/* ============================================================
    LEDGERS PANEL
    ============================================================ */
-let ledgerListSearch = '';
-
 function renderLedgers(){
   const wrap = $('#ledgerList');
-  const countEl = $('#ledgerResultCount');
-  const allLedgers = Store.all();
-  if (!allLedgers.length){
-    wrap.innerHTML = `<div class="empty"><div class="glyph">🗂️</div>No ledgers yet. Import a spreadsheet to create the first one.</div>`;
-    if (countEl) countEl.textContent = '';
-    return;
-  }
-
-  const search = ledgerListSearch.trim().toLowerCase();
-  const ledgers = search
-    ? allLedgers.filter(l => l.name.toLowerCase().includes(search) || l.rows.some(r => ledgerRowMatchesSearch(l, r, search)))
-    : allLedgers;
-
-  if (countEl){
-    countEl.textContent = search ? `${ledgers.length} of ${allLedgers.length} ledgers match “${ledgerListSearch.trim()}”` : '';
-  }
-
+  const ledgers = Store.all();
   if (!ledgers.length){
-    wrap.innerHTML = `<div class="empty">No ledgers match “${ledgerListSearch.trim()}”.</div>`;
+    wrap.innerHTML = `<div class="empty"><div class="glyph">🗂️</div>No ledgers yet. Import a spreadsheet to create the first one.</div>`;
     return;
   }
-
-  wrap.innerHTML = `<div class="ledger-grid">${ledgers.map(l => {
-    const ui = getLedgerUI(l.id);
-    const chevron = ui.expanded ? '▾' : '▸';
-    const isFin = l.style === 'financial';
-    let countsHtml;
-    if (isFin){
-      const totalDebit = l.rows.reduce((s,r)=> s + (parseFloat(r.debit)||0), 0);
-      const totalCredit = l.rows.reduce((s,r)=> s + (parseFloat(r.credit)||0), 0);
-      const paid = !!l.paid;
-      countsHtml = `
-        <span class="pill released">₱${fmtMoney(totalDebit)} debit</span>
-        <span class="pill released">₱${fmtMoney(totalCredit)} credit</span>
-        <button type="button" class="pill ${paid?'released':'pending'}" data-toggle-paid="${l.id}" data-paid="${paid}" style="border:none;cursor:pointer;">${paid ? "✓ ALL FA's Paid" : "Not yet ALL FA's Paid"}</button>`;
-    } else {
-      const released = l.rows.filter(r=>r.released).length;
-      const pending = l.rows.length - released;
-      countsHtml = `
-        <span class="pill released">${released} released</span>
-        <span class="pill pending">${pending} pending</span>`;
-    }
-
-    const folder = l.folder || null; // null | 'no-folder' | 'with-folder'
-    const folderToggle = `<div class="folder-toggle">
-      <button type="button" class="folder-btn no-folder ${folder==='no-folder'?'active':''}" data-set-folder="${l.id}" data-folder-value="no-folder">No Folder</button>
-      <button type="button" class="folder-btn with-folder ${folder==='with-folder'?'active':''}" data-set-folder="${l.id}" data-folder-value="with-folder">With Folder</button>
-    </div>`;
-
-    const header = `<div class="lc-header" data-toggle-expand="${l.id}">
-      <div class="lc-toprow">
-        <span class="lc-style-tag ${isFin?'financial':'status'}">${isFin?'Financial':'Case Status'}</span>
-        <button class="icon-btn" title="Delete ledger" data-del="${l.id}">✕</button>
+  wrap.innerHTML = ledgers.map(l => {
+    const t = ledgerTotals(l);
+    const isOpen = openLedgerId === l.id;
+    return `<div class="ledger-item" data-id="${l.id}">
+      <div class="row-top" data-toggle="${l.id}">
+        <div>
+          <div class="name">${l.name}</div>
+          <div class="meta">${l.fileName} · ${(l.entries||[]).filter(e=>e.type==='row').length} entries · imported ${fmtDate(l.importedAt)}</div>
+        </div>
+        <div class="counts">
+          <span class="pill ${t.status}">₱ ${fmtMoney(t.balance)} balance</span>
+          <button class="icon-btn" title="Delete ledger" data-del="${l.id}">✕</button>
+        </div>
       </div>
-      <div class="lc-name">${chevron} ${l.name}</div>
-      <div class="lc-meta">${l.fileName} · ${l.rows.length} rows · imported ${fmtDate(l.importedAt)}</div>
-      <div class="lc-counts">${countsHtml}</div>
-      ${folderToggle}
+      <div class="ledger-detail ${isOpen?'open':''}" id="detail-${l.id}"></div>
     </div>`;
+  }).join('');
 
-    if (!ui.expanded){
-      return `<div class="ledger-card" data-ledger-id="${l.id}">${header}</div>`;
-    }
-
-    const detail = `<div class="ledger-detail">
-      <div class="toolbar">
-        <input type="text" data-ledger-search="${l.id}" placeholder="Search this ledger…" value="${escapeAttr(ui.search)}">
-        ${!isFin ? `<select data-ledger-status="${l.id}">
-          <option value="all">All statuses</option>
-          <option value="released">Released only</option>
-          <option value="pending">Non‑Released only</option>
-        </select>` : ''}
-        <div class="spacer"></div>
-        <span class="result-count" style="margin:0;" data-ledger-count="${l.id}"></span>
-      </div>
-      <div data-ledger-table="${l.id}"></div>
-    </div>`;
-
-    return `<div class="ledger-card expanded" data-ledger-id="${l.id}">${header}${detail}</div>`;
-  }).join('')}</div>`;
-
+  wrap.querySelectorAll('[data-toggle]').forEach(row => {
+    row.addEventListener('click', e => {
+      if (e.target.closest('[data-del]')) return;
+      const id = row.dataset.toggle;
+      openLedgerId = openLedgerId === id ? null : id;
+      renderLedgers();
+      if (openLedgerId) renderLedgerDetail(openLedgerId);
+    });
+  });
   wrap.querySelectorAll('[data-del]').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
+    btn.addEventListener('click', async e => {
       e.stopPropagation();
-      if (confirm('Remove this ledger and all its rows? This cannot be undone.')){
+      if (confirm('Remove this ledger permanently?')){
         try { await Store.removeLedger(btn.dataset.del); }
         catch(err){ alert('Could not delete: ' + err.message); }
       }
     });
   });
-  wrap.querySelectorAll('[data-toggle-paid]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const current = btn.dataset.paid === 'true';
-      setLedgerPaid(btn.dataset.togglePaid, !current);
-    });
-  });
-  wrap.querySelectorAll('[data-set-folder]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      setLedgerFolder(btn.dataset.setFolder, btn.dataset.folderValue);
-    });
-  });
-  wrap.querySelectorAll('[data-toggle-expand]').forEach(row => {
-    row.addEventListener('click', (e) => {
-      if (e.target.closest('[data-toggle-paid]') || e.target.closest('[data-del]') || e.target.closest('[data-set-folder]')) return;
-      const id = row.dataset.toggleExpand;
-      getLedgerUI(id).expanded = !getLedgerUI(id).expanded;
-      renderLedgers();
-    });
-  });
-
-  // Wire up each expanded ledger's search/filter controls, then render its table.
-  ledgers.forEach(l => {
-    const ui = getLedgerUI(l.id);
-    if (!ui.expanded) return;
-    const searchInput = wrap.querySelector(`[data-ledger-search="${l.id}"]`);
-    const statusSelect = wrap.querySelector(`[data-ledger-status="${l.id}"]`);
-    if (searchInput){
-      searchInput.addEventListener('click', e => e.stopPropagation());
-      searchInput.addEventListener('input', () => {
-        ui.search = searchInput.value;
-        renderLedgerDetailTable(l.id);
-      });
-    }
-    if (statusSelect){
-      statusSelect.value = ui.status;
-      statusSelect.addEventListener('click', e => e.stopPropagation());
-      statusSelect.addEventListener('change', () => {
-        ui.status = statusSelect.value;
-        renderLedgerDetailTable(l.id);
-      });
-    }
-    renderLedgerDetailTable(l.id);
-  });
+  if (openLedgerId) renderLedgerDetail(openLedgerId);
 }
 
-function renderLedgerDetailTable(ledgerId){
-  const l = Store.all().find(x => x.id === ledgerId);
-  if (!l) return;
-  const ui = getLedgerUI(ledgerId);
-  const container = $(`#ledgerList [data-ledger-table="${ledgerId}"]`);
-  const countEl = $(`#ledgerList [data-ledger-count="${ledgerId}"]`);
-  if (!container) return;
-  const search = ui.search.trim().toLowerCase();
-
-  if (l.style === 'financial'){
-    renderFinancialLedger(l, search, container);
-    if (countEl) countEl.textContent = `${l.rows.length} rows in this ledger`;
-    return;
-  }
-
-  let rows = l.rows;
-  if (search){
-    rows = rows.filter(r => Object.values(r.data).some(v => String(v).toLowerCase().includes(search)));
-  }
-  if (ui.status !== 'all'){
-    rows = rows.filter(r => ui.status === 'released' ? r.released : !r.released);
-  }
-  if (ui.sort.col){
-    rows = [...rows].sort((a,b) => {
-      let av, bv;
-      if (ui.sort.col === '__status'){ av = a.released?1:0; bv = b.released?1:0; }
-      else { av = a.data[ui.sort.col]; bv = b.data[ui.sort.col]; }
-      if (av === undefined) av = '';
-      if (bv === undefined) bv = '';
-      if (av < bv) return -1 * ui.sort.dir;
-      if (av > bv) return 1 * ui.sort.dir;
-      return 0;
-    });
-  }
-
-  const columns = l.columns && l.columns.length ? l.columns : (() => {
-    const cols = [];
-    l.rows.forEach(r => Object.keys(r.data).forEach(c => { if (!cols.includes(c)) cols.push(c); }));
-    return cols;
-  })();
-
-  const arrow = col => ui.sort.col === col ? `<span class="arrow">${ui.sort.dir===1?'▲':'▼'}</span>` : '';
-  container.innerHTML = `<div class="table-wrap"><table class="master">
+function renderLedgerDetail(id){
+  const el = document.getElementById('detail-' + id);
+  if (!el) return;
+  const ledger = Store.all().find(l => l.id === id);
+  if (!ledger) return;
+  const rows = computeLedgerRows(ledger);
+  el.innerHTML = `<div class="table-wrap" style="margin-top:14px;">
+    <table class="ledger-book">
       <thead><tr>
-        <th data-lsort="__status">Status ${arrow('__status')}</th>
-        ${columns.map(c => `<th data-lsort="${c}">${c} ${arrow(c)}</th>`).join('')}
+        <th>Date</th><th>Check No.</th><th>Particulars</th><th>Debit</th><th>Credit</th><th>Balance</th><th>Remarks</th>
       </tr></thead>
-      <tbody>${rows.length ? rows.map(r => `<tr>
-          <td><span class="status-tag ${r.released?'released':'pending'}">${r.released?'Released':'Pending'}</span></td>
-          ${columns.map(c => `<td>${r.data[c] ?? ''}</td>`).join('')}
-        </tr>`).join('') : `<tr><td colspan="${columns.length+1}" style="text-align:center;color:var(--ink-soft);">No rows match.</td></tr>`}</tbody>
-    </table></div>`;
-
-  container.querySelectorAll('th[data-lsort]').forEach(th => {
-    th.addEventListener('click', () => {
-      const col = th.dataset.lsort;
-      if (ui.sort.col === col) ui.sort.dir *= -1; else { ui.sort.col = col; ui.sort.dir = 1; }
-      renderLedgerDetailTable(ledgerId);
-    });
-  });
-
-  if (countEl) countEl.textContent = `${rows.length} of ${l.rows.length} rows`;
+      <tbody>
+        ${rows.map(r => r.type === 'header'
+          ? `<tr class="section-row"><td class="spacer"></td><td class="spacer"></td><td colspan="5">${r.label}</td></tr>`
+          : `<tr>
+              <td class="date">${r.date ? fmtDate(r.date) : ''}</td>
+              <td class="checkno">${r.checkNo}</td>
+              <td>${r.particulars}</td>
+              <td class="num">${fmtMoney(r.debit)}</td>
+              <td class="num">${fmtMoney(r.credit)}</td>
+              <td class="num">${fmtMoney(r.balance)}</td>
+              <td>${r.remarks}</td>
+            </tr>`
+        ).join('')}
+      </tbody>
+    </table>
+  </div>`;
 }
-
-async function setLedgerPaid(ledgerId, paid){
-  try { await db.collection('ledgers').doc(ledgerId).update({ paid }); }
-  catch(err){ alert('Could not update paid status: ' + err.message); }
-}
-
-async function setLedgerFolder(ledgerId, folder){
-  try { await db.collection('ledgers').doc(ledgerId).update({ folder }); }
-  catch(err){ alert('Could not update folder status: ' + err.message); }
-}
-
-$('#deleteAllLedgersBtn').addEventListener('click', async () => {
-  const count = Store.all().length;
-  if (!count){ alert('There are no ledgers to delete.'); return; }
-  if (!confirm(`This will permanently delete all ${count} ledger(s) and every row in them, for every signed-in user. This cannot be undone.`)) return;
-  const typed = prompt('Type DELETE to confirm.');
-  if (typed !== 'DELETE') return;
-  const btn = $('#deleteAllLedgersBtn');
-  btn.disabled = true; btn.textContent = 'Deleting…';
-  try {
-    await Store.removeAllLedgers();
-  } catch(err){
-    alert('Could not delete all ledgers: ' + err.message);
-  } finally {
-    btn.disabled = false; btn.textContent = 'Delete all ledgers';
-  }
-});
 
 /* ============================================================
-   EXPORT / SEARCH HELPERS
+   MASTERLIST PANEL — one row per ledger (beneficiary)
    ============================================================ */
-function allRecords(){
-  const out = [];
-  Store.all().forEach(l => {
-    l.rows.forEach(r => out.push({
-      ledgerId: l.id, ledgerName: l.name, ledgerStyle: l.style || 'status',
-      releaseCol: l.releaseCol, nameCol: l.nameCol,
-      ...r
-    }));
-  });
-  return out;
-}
+function renderMasterlist(){
+  const search = $('#searchInput').value.trim().toLowerCase();
+  const status = $('#statusFilter').value;
 
-function ledgerRowMatchesSearch(l, r, search){
-  if (l.style === 'financial'){
-    return String(r.particulars||'').toLowerCase().includes(search) ||
-           String(r.checkNo||'').toLowerCase().includes(search) ||
-           String(r.remarks||'').toLowerCase().includes(search) ||
-           String(r.group||'').toLowerCase().includes(search);
-  }
-  return Object.values(r.data).some(v => String(v).toLowerCase().includes(search));
-}
+  let ledgers = Store.all().map(l => ({ ledger: l, ...ledgerTotals(l) }));
+  if (status !== 'all') ledgers = ledgers.filter(r => r.status === status);
+  if (search) ledgers = ledgers.filter(r => r.ledger.name.toLowerCase().includes(search));
 
-
-/* ---- Financial ledger (Debit/Credit/Balance) rendering ---- */
-async function updateFinRow(ledgerId, rowId, patch){
-  const ledger = Store.all().find(l => l.id === ledgerId);
-  if (!ledger) return;
-  const rows = ledger.rows.map(r => r.id === rowId ? { ...r, ...patch } : r);
-  try { await db.collection('ledgers').doc(ledgerId).update({ rows }); }
-  catch(err){ alert('Could not save that change: ' + err.message); }
-}
-
-async function addFinRow(ledgerId, isGroupRow){
-  const ledger = Store.all().find(l => l.id === ledgerId);
-  if (!ledger) return;
-  const newRow = {
-    id: uid(), data: {}, isGroupRow: !!isGroupRow,
-    group: isGroupRow ? 'New Section' : '',
-    date: '', checkNo: '', particulars: '', debit: '', credit: '', remarks: ''
-  };
-  const rows = [...ledger.rows, newRow];
-  try { await db.collection('ledgers').doc(ledgerId).update({ rows }); }
-  catch(err){ alert('Could not add row: ' + err.message); }
-}
-
-async function deleteFinRow(ledgerId, rowId){
-  const ledger = Store.all().find(l => l.id === ledgerId);
-  if (!ledger) return;
-  const rows = ledger.rows.filter(r => r.id !== rowId);
-  try { await db.collection('ledgers').doc(ledgerId).update({ rows }); }
-  catch(err){ alert('Could not delete row: ' + err.message); }
-}
-
-function parseDateForSort(v){
-  if (v === '' || v === null || v === undefined) return null;
-  const d = v instanceof Date ? v : new Date(v);
-  return isNaN(d.getTime()) ? null : d;
-}
-
-async function sortFinLedgerByDate(ledgerId){
-  const ledger = Store.all().find(l => l.id === ledgerId);
-  if (!ledger) return;
-  // Sort transaction rows oldest -> latest within each section, keeping section headers in place.
-  const sections = [];
-  let current = { header: null, items: [] };
-  ledger.rows.forEach(r => {
-    if (r.isGroupRow){
-      sections.push(current);
-      current = { header: r, items: [] };
-    } else {
-      current.items.push(r);
-    }
-  });
-  sections.push(current);
-
-  const sortedRows = [];
-  sections.forEach(sec => {
-    if (sec.header) sortedRows.push(sec.header);
-    const items = [...sec.items].sort((a, b) => {
-      const da = parseDateForSort(a.date);
-      const db = parseDateForSort(b.date);
-      if (da && db) return da - db;
-      if (da) return -1;
-      if (db) return 1;
+  if (sort.col){
+    ledgers.sort((a,b) => {
+      let av, bv;
+      if (sort.col === 'name'){ av = a.ledger.name; bv = b.ledger.name; }
+      else if (sort.col === 'status'){ av = a.status; bv = b.status; }
+      else { av = a[sort.col] ?? 0; bv = b[sort.col] ?? 0; }
+      if (av < bv) return -1 * sort.dir;
+      if (av > bv) return 1 * sort.dir;
       return 0;
     });
-    sortedRows.push(...items);
-  });
-
-  try { await db.collection('ledgers').doc(ledgerId).update({ rows: sortedRows }); }
-  catch(err){ alert('Could not sort by date: ' + err.message); }
-}
-
-function renderFinancialLedger(ledger, search, wrap){
-  let rows = ledger.rows;
-  if (search){
-    rows = rows.filter(r =>
-      String(r.particulars||'').toLowerCase().includes(search) ||
-      String(r.checkNo||'').toLowerCase().includes(search) ||
-      String(r.remarks||'').toLowerCase().includes(search) ||
-      String(r.group||'').toLowerCase().includes(search)
-    );
   }
 
-  let balance = 0;
-  let totalDebit = 0, totalCredit = 0;
-  const bodyRows = rows.map(r => {
-    if (r.isGroupRow){
-      balance = 0;
-      return `<tr class="group-row" data-id="${r.id}">
-        <td colspan="7" contenteditable="true" data-field="group">${r.group || ''}</td>
-        <td class="row-actions"><button class="icon-btn" data-del-row="${r.id}" title="Delete row">✕</button></td>
-      </tr>`;
-    }
-    const debit = parseFloat(r.debit) || 0;
-    const credit = parseFloat(r.credit) || 0;
-    balance += debit - credit;
-    totalDebit += debit; totalCredit += credit;
-    return `<tr data-id="${r.id}">
-      <td contenteditable="true" data-field="date">${r.date ? fmtLedgerDate(r.date) : ''}</td>
-      <td contenteditable="true" data-field="checkNo">${r.checkNo || ''}</td>
-      <td contenteditable="true" data-field="particulars">${r.particulars || ''}</td>
-      <td class="num" contenteditable="true" data-field="debit" data-raw="${r.debit||''}">${r.debit !== '' && r.debit != null ? fmtMoney(r.debit) : ''}</td>
-      <td class="num" contenteditable="true" data-field="credit" data-raw="${r.credit||''}">${r.credit !== '' && r.credit != null ? fmtMoney(r.credit) : ''}</td>
-      <td class="num">${fmtMoney(balance)}</td>
-      <td contenteditable="true" data-field="remarks">${r.remarks || ''}</td>
-      <td class="row-actions"><button class="icon-btn" data-del-row="${r.id}" title="Delete row">✕</button></td>
-    </tr>`;
-  }).join('');
+  $('#resultCount').textContent = `${ledgers.length} of ${Store.all().length} ledgers`;
 
-  const finPaid = !!ledger.paid;
-  wrap.innerHTML = `
-    <div class="actions" style="margin-bottom:12px;">
-      <button type="button" class="pill ${finPaid?'released':'pending'}" data-fin-paid-toggle data-paid="${finPaid}" style="border:none;cursor:pointer;font-size:12.5px;padding:6px 14px;">${finPaid ? "✓ ALL FA's Paid" : "Not yet ALL FA's Paid"}</button>
-    </div>
-    <div class="fin-hint">Click any cell to edit it directly — date, check no., particulars, debit, credit, remarks, and section headers all save automatically. Balance is calculated, not editable, and resets after each section header. Use "Sort dates" to reorder rows oldest → latest within each section.</div>
-    <div class="table-wrap"><table class="finledger">
-      <thead><tr>
-        <th>Date</th><th>Check No.</th><th>Particulars</th>
-        <th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th><th>Remarks</th><th></th>
-      </tr></thead>
-      <tbody>${bodyRows || `<tr><td colspan="8" style="text-align:center;color:var(--ink-soft);">No rows match.</td></tr>`}</tbody>
-    </table></div>
-    <div class="actions" style="margin-top:12px;">
-      <button class="btn secondary" data-fin-add-row>+ Add row</button>
-      <button class="btn secondary" data-fin-add-group>+ Add section header</button>
-      <button class="btn secondary" data-fin-sort-date>⇅ Sort dates: oldest → latest</button>
-    </div>
-    <div class="fin-summary">
-      <span>Total debit: <b>₱${fmtMoney(totalDebit)}</b></span>
-      <span>Total credit: <b>₱${fmtMoney(totalCredit)}</b></span>
-      <span>Ending balance: <b>₱${fmtMoney(balance)}</b></span>
-    </div>
-  `;
+  const cols = [
+    {key:'status', label:'Status'},
+    {key:'name', label:'Beneficiary'},
+    {key:'debit', label:'Total Debit'},
+    {key:'credit', label:'Total Credit'},
+    {key:'balance', label:'Balance'},
+    {key:'lastDate', label:'Last Entry'}
+  ];
+  const arrow = col => sort.col === col ? `<span class="arrow">${sort.dir===1?'▲':'▼'}</span>` : '';
+  const table = $('#masterTable');
+  table.innerHTML = `<thead><tr>
+      ${cols.map(c => `<th data-sort="${c.key}">${c.label} ${arrow(c.key)}</th>`).join('')}
+    </tr></thead>
+    <tbody>${ledgers.map(r => `<tr data-open="${r.ledger.id}">
+        <td><span class="status-tag ${r.status}">${r.status === 'settled' ? 'Settled' : 'Pending'}</span></td>
+        <td>${r.ledger.name}</td>
+        <td class="num">${fmtMoney(r.debit)}</td>
+        <td class="num">${fmtMoney(r.credit)}</td>
+        <td class="num">${fmtMoney(r.balance)}</td>
+        <td>${fmtDate(r.lastDate)}</td>
+      </tr>`).join('')}</tbody>`;
 
-  wrap.querySelectorAll('td[contenteditable="true"]').forEach(td => {
-    td.addEventListener('focus', () => {
-      if (td.dataset.field === 'debit' || td.dataset.field === 'credit'){
-        td.textContent = td.dataset.raw || '';
-      }
-    });
-    td.addEventListener('blur', () => {
-      const tr = td.closest('tr');
-      const field = td.dataset.field;
-      let value = td.textContent.trim();
-      if (field === 'debit' || field === 'credit'){
-        const n = parseFloat(value.replace(/,/g,''));
-        value = isNaN(n) ? '' : n;
-      }
-      updateFinRow(ledger.id, tr.dataset.id, { [field]: value });
-    });
-    td.addEventListener('keydown', e => {
-      if (e.key === 'Enter'){ e.preventDefault(); td.blur(); }
+  table.querySelectorAll('th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      if (sort.col === col) sort.dir *= -1; else { sort.col = col; sort.dir = 1; }
+      renderMasterlist();
     });
   });
-
-  wrap.querySelectorAll('[data-del-row]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (confirm('Delete this row?')) deleteFinRow(ledger.id, btn.dataset.delRow);
+  table.querySelectorAll('tr[data-open]').forEach(tr => {
+    tr.addEventListener('click', () => {
+      openLedgerId = tr.dataset.open;
+      document.querySelector('nav.tabs button[data-tab="ledgers"]').click();
     });
-  });
-
-  const addRowBtn = wrap.querySelector('[data-fin-add-row]');
-  const addGroupBtn = wrap.querySelector('[data-fin-add-group]');
-  const sortDateBtn = wrap.querySelector('[data-fin-sort-date]');
-  const paidToggleBtn = wrap.querySelector('[data-fin-paid-toggle]');
-  if (addRowBtn) addRowBtn.addEventListener('click', () => addFinRow(ledger.id, false));
-  if (addGroupBtn) addGroupBtn.addEventListener('click', () => addFinRow(ledger.id, true));
-  if (sortDateBtn) sortDateBtn.addEventListener('click', () => sortFinLedgerByDate(ledger.id));
-  if (paidToggleBtn) paidToggleBtn.addEventListener('click', () => {
-    const current = paidToggleBtn.dataset.paid === 'true';
-    setLedgerPaid(ledger.id, !current);
   });
 }
 
-$('#ledgerSearchInput').addEventListener('input', () => {
-  ledgerListSearch = $('#ledgerSearchInput').value;
-  renderLedgers();
-});
+['#searchInput'].forEach(sel => $(sel).addEventListener('input', renderMasterlist));
+$('#statusFilter').addEventListener('change', renderMasterlist);
 
 /* ============================================================
    EXPORT / BACKUP
    ============================================================ */
 $('#exportCsvBtn').addEventListener('click', () => {
-  const records = allRecords();
-  if (!records.length) return alert('No records to export yet.');
-  const columns = [];
-  records.forEach(r => Object.keys(r.data).forEach(c => { if (!columns.includes(c)) columns.push(c); }));
-  const sheetRows = records.map(r => ({
-    Status: r.released ? 'Released' : 'Non-Released',
-    Ledger: r.ledgerName,
-    ...r.data
+  const ledgers = Store.all().map(l => ({ ledger: l, ...ledgerTotals(l) }));
+  if (!ledgers.length) return alert('No ledgers to export yet.');
+  const sheetRows = ledgers.map(r => ({
+    Beneficiary: r.ledger.name,
+    Status: r.status === 'settled' ? 'Settled' : 'Pending',
+    'Total Debit': r.debit,
+    'Total Credit': r.credit,
+    Balance: r.balance,
+    'Last Entry': fmtDate(r.lastDate)
   }));
   const ws = XLSX.utils.json_to_sheet(sheetRows);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Case Ledger');
-  XLSX.writeFile(wb, `case-ledger_${new Date().toISOString().slice(0,10)}.csv`, {bookType:'csv'});
+  XLSX.utils.book_append_sheet(wb, ws, 'Masterlist');
+  XLSX.writeFile(wb, `masterlist_${new Date().toISOString().slice(0,10)}.csv`, {bookType:'csv'});
 });
 
 $('#exportJsonBtn').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify(Store.all(), null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `case-ledger-backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `financial-ledger-backup_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
 });
 
@@ -1318,33 +763,22 @@ $('#jsonFileInput').addEventListener('change', e => {
    STAMP SUMMARY
    ============================================================ */
 function updateStamps(){
-  const records = allRecords();
-  const statusRecords = records.filter(r => r.ledgerStyle !== 'financial');
-  const financialLedgers = Store.all().filter(l => l.style === 'financial');
-  const finPaid = financialLedgers.filter(l => l.paid).length;
-  const finUnpaid = financialLedgers.length - finPaid;
-
-  const total = statusRecords.length + financialLedgers.length;
-  const released = statusRecords.filter(r=>r.released).length + finPaid;
-  const pending = (statusRecords.length - statusRecords.filter(r=>r.released).length) + finUnpaid;
-
-  const withFolder = Store.all().filter(l => l.folder === 'with-folder').length;
-  const noFolder = Store.all().filter(l => l.folder === 'no-folder').length;
-
+  const ledgers = Store.all().map(l => ledgerTotals(l));
+  const pending = ledgers.filter(r => r.status === 'pending').length;
+  const settled = ledgers.length - pending;
   $('#stampRow').innerHTML = `
-    <div class="stamp"><span class="num">${total}</span><span class="lbl">Total</span></div>
-    <div class="stamp released"><span class="num">${released}</span><span class="lbl">Released</span></div>
-    <div class="stamp pending"><span class="num">${pending}</span><span class="lbl">Non‑Released</span></div>
-    <div class="stamp released"><span class="num">${withFolder}</span><span class="lbl">With Folder</span></div>
-    <div class="stamp pending"><span class="num">${noFolder}</span><span class="lbl">No Folder</span></div>
+    <div class="stamp"><span class="num">${ledgers.length}</span><span class="lbl">Ledgers</span></div>
+    <div class="stamp pending"><span class="num">${pending}</span><span class="lbl">Pending</span></div>
+    <div class="stamp settled"><span class="num">${settled}</span><span class="lbl">Settled</span></div>
   `;
   $('#ledgerCountTab').textContent = Store.all().length ? `(${Store.all().length})` : '';
+  $('#masterCountTab').textContent = Store.all().length ? `(${Store.all().length})` : '';
 }
 
 /* ============================================================
    AUTH GATE
    ============================================================ */
-function refreshAll(){ updateStamps(); renderLedgers(); }
+function refreshAll(){ updateStamps(); renderLedgers(); renderMasterlist(); }
 
 function showApp(user){
   $('#authScreen').style.display = 'none';
@@ -1370,7 +804,7 @@ if (!CONFIG_IS_SET){
   });
 }
 
-let authMode = 'signin'; // or 'signup'
+let authMode = 'signin';
 $('#authToggle').addEventListener('click', e => {
   if (e.target.tagName !== 'A') return;
   authMode = authMode === 'signin' ? 'signup' : 'signin';
@@ -1396,6 +830,27 @@ $('#authSubmitBtn').addEventListener('click', async () => {
     } else {
       await auth.createUserWithEmailAndPassword(email, password);
     }
+  } catch(err){
+    errBox.textContent = err.message;
+    errBox.style.display = 'block';
+  }
+});
+
+$('#forgotLink').addEventListener('click', async () => {
+  const email = $('#authEmail').value.trim();
+  const errBox = $('#authError');
+  const infoBox = $('#authInfo');
+  errBox.style.display = 'none';
+  infoBox.style.display = 'none';
+  if (!email){
+    errBox.textContent = 'Type your email above first, then click "Forgot password?" again.';
+    errBox.style.display = 'block';
+    return;
+  }
+  try {
+    await auth.sendPasswordResetEmail(email);
+    infoBox.textContent = `Password reset email sent to ${email}. Check your inbox (and spam folder).`;
+    infoBox.style.display = 'block';
   } catch(err){
     errBox.textContent = err.message;
     errBox.style.display = 'block';

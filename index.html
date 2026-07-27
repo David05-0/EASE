@@ -589,6 +589,9 @@ function guessCreditCol(cols){
 function guessRemarksCol(cols){
   return cols.find(c => /remark/i.test(c)) || '__none__';
 }
+function hasRemarksColumn(cols){
+  return (cols || []).some(c => /^remarks?$/i.test(String(c).trim()));
+}
 function guessGroupCol(cols){
   return cols.find(c => /group|section|year ?level|category/i.test(c)) || '__none__';
 }
@@ -781,6 +784,7 @@ $('#createBlankLedgerBtn').addEventListener('click', async () => {
   const columns = $('#blankLedgerColumnsInput').value.trim().split(',').map(c => c.trim()).filter(Boolean);
   if (!name) return alert('Give the ledger a name.');
   if (!columns.length) return alert('Add at least one column, separated by commas.');
+  if (!hasRemarksColumn(columns)) columns.push('Remarks');
   const btn = $('#createBlankLedgerBtn');
   const btnLabelDefault = btn.textContent;
   btn.disabled = true; btn.textContent = 'Creating…';
@@ -881,12 +885,13 @@ $('#createLedgerBtn').addEventListener('click', async () => {
           columns, rows: built.rows
         });
       } else if (importStyle === 'custom'){
+        const customColumns = hasRemarksColumn(columns) ? columns : [...columns, 'Remarks'];
         const rows = sheetRows.map(r => ({ id: uid(), data: r }));
         ledgersToCreate.push({
           id: uid(), name: ledgerName, style: 'custom', folder,
           fileName: pendingImport.fileName, sheetName,
           importedAt: new Date().toISOString(),
-          columns, rows
+          columns: customColumns, rows
         });
       } else {
         const built = buildStatusRows(sheetRows, columns, mapping);
@@ -932,6 +937,14 @@ async function setLedgerPaid(ledgerId, paid){
 async function setLedgerFolder(ledgerId, folder){
   try { await db.collection('ledgers').doc(ledgerId).update({ folder }); }
   catch(err){ alert('Could not update folder: ' + err.message); }
+}
+
+async function updateStatusRemarks(ledgerId, rowId, remarks){
+  const ledger = Store.all().find(l => l.id === ledgerId);
+  if (!ledger) return;
+  const rows = ledger.rows.map(r => r.id === rowId ? { ...r, remarks } : r);
+  try { await db.collection('ledgers').doc(ledgerId).update({ rows }); }
+  catch(err){ alert('Could not save remarks: ' + err.message); }
 }
 
 $('#deleteAllLedgersBtn').addEventListener('click', async () => {
@@ -1132,6 +1145,7 @@ function renderLedgers(){
       let av, bv;
       if (sort.col === '__status'){ av = a.released?1:0; bv = b.released?1:0; }
       else if (sort.col === '__ledger'){ av = a.ledgerName; bv = b.ledgerName; }
+      else if (sort.col === '__remarks'){ av = a.remarks || ''; bv = b.remarks || ''; }
       else { av = a.data[sort.col]; bv = b.data[sort.col]; }
       if (av === undefined) av = '';
       if (bv === undefined) bv = '';
@@ -1154,12 +1168,22 @@ function renderLedgers(){
       <th data-sort="__status">Status ${arrow('__status')}</th>
       <th data-sort="__ledger">Ledger ${arrow('__ledger')}</th>
       ${columns.map(c => `<th data-sort="${c}">${c} ${arrow(c)}</th>`).join('')}
+      <th data-sort="__remarks">Remarks ${arrow('__remarks')}</th>
     </tr></thead>
     <tbody>${records.map(r => `<tr class="ledger-margin">
         <td><span class="status-tag ${r.released?'released':'pending'}">${r.released?'Released':'Pending'}</span></td>
         <td>${r.ledgerName}</td>
         ${columns.map(c => `<td>${r.data[c] ?? ''}</td>`).join('')}
+        <td contenteditable="true" style="white-space:normal;" data-remarks-row="${r.ledgerId}|${r.id}">${r.remarks || ''}</td>
       </tr>`).join('')}</tbody>`;
+
+  table.querySelectorAll('[data-remarks-row]').forEach(td => {
+    td.addEventListener('blur', () => {
+      const [ledgerId, rowId] = td.dataset.remarksRow.split('|');
+      updateStatusRemarks(ledgerId, rowId, td.textContent.trim());
+    });
+    td.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); td.blur(); } });
+  });
 
   table.querySelectorAll('th[data-sort]').forEach(th => {
     th.addEventListener('click', () => {
@@ -1410,6 +1434,11 @@ async function deleteCustomColumn(ledgerId, colName){
 
 function renderCustomLedger(ledger, search){
   const wrap = $('#customLedgerWrap');
+  if (!hasRemarksColumn(ledger.columns)){
+    const columns = [...(ledger.columns || []), 'Remarks'];
+    db.collection('ledgers').doc(ledger.id).update({ columns }).catch(()=>{});
+    ledger = { ...ledger, columns };
+  }
   let rows = ledger.rows;
   if (search){
     rows = rows.filter(r => Object.values(r.data).some(v => String(v).toLowerCase().includes(search)));

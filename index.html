@@ -470,6 +470,11 @@
         <option value="pending">Non‑Released only</option>
       </select>
       <select id="ledgerFilter"><option value="all">All ledgers</option></select>
+      <select id="paymentFilter">
+        <option value="all">All payment statuses</option>
+        <option value="paid">Fully paid</option>
+        <option value="unpaid">Not yet processed</option>
+      </select>
       <div class="spacer"></div>
       <button class="btn secondary" id="exportCsvBtn">Export CSV</button>
       <button class="btn secondary" id="exportJsonBtn">Backup (JSON)</button>
@@ -1093,8 +1098,17 @@ function renderLedgers(){
         l.rows.some(r => ledgerRowMatchesSearch(l, r, search))
       );
     }
+    const paymentFilter = $('#paymentFilter').value;
+    if (paymentFilter !== 'all'){
+      ledgersToShow = ledgersToShow.filter(l => l.style === 'financial' && (paymentFilter === 'paid' ? !!l.paid : !l.paid));
+    }
     if (!ledgersToShow.length){
-      cardsWrap.innerHTML = `<div class="empty" style="padding:20px;">No ledgers match “${$('#searchInput').value.trim()}”.</div>`;
+      const msg = search
+        ? `No ledgers match “${$('#searchInput').value.trim()}”.`
+        : paymentFilter === 'paid' ? 'No financial ledgers are fully paid yet.'
+        : paymentFilter === 'unpaid' ? 'No financial ledgers are still unpaid — nice.'
+        : 'No ledgers yet.';
+      cardsWrap.innerHTML = `<div class="empty" style="padding:20px;">${msg}</div>`;
     } else if (folderView === 'folders'){
       const groups = {};
       ledgersToShow.forEach(l => {
@@ -1595,6 +1609,7 @@ $('#confirmConvertBtn').addEventListener('click', async () => {
 ['#searchInput'].forEach(sel => $(sel).addEventListener('input', renderLedgers));
 $('#statusFilter').addEventListener('change', renderLedgers);
 $('#ledgerFilter').addEventListener('change', renderLedgers);
+$('#paymentFilter').addEventListener('change', renderLedgers);
 
 /* ============================================================
    EXPORT / BACKUP
